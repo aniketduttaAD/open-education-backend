@@ -1,0 +1,123 @@
+services:
+  # Main Backend Application
+  api:
+    image: node:20-alpine
+    container_name: openedu-api
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+    env_file:
+      - .env
+    ports:
+      - "8081:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    volumes:
+      - .:/app
+    networks:
+      - openedu-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: >
+      sh -c "
+        apk add --no-cache bash python3 make g++ cairo-dev jpeg-dev pango-dev musl-dev giflib-dev pixman-dev pangomm-dev libjpeg-turbo-dev freetype-dev ffmpeg curl chromium &&
+        npm install &&
+        npm run build &&
+        npm prune --production &&
+        echo 'FFmpeg version:' && ffmpeg -version | head -1 &&
+        echo 'Marp CLI version:' && npx @marp-team/marp-cli --version &&
+        npm run start:prod
+      "
+
+  # PostgreSQL Database with pgvector extension
+  db:
+    image: ankane/pgvector:latest
+    container_name: openedu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openedu
+      POSTGRES_PASSWORD: Qt5ff3c6RDkGBTpuALBap1juR7uXjJlSG0cmSn54FZI=
+      POSTGRES_DB: openedu_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openedu -d openedu_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - openedu-network
+
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: openedu-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: AKIAIOSFODNN7EXAMPLE
+      MINIO_ROOT_PASSWORD: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - openedu-network
+
+  # MinIO Setup - Creates required buckets
+  minio-setup:
+    image: minio/mc:latest
+    container_name: openedu-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >-
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 AKIAIOSFODNN7EXAMPLE wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY; do
+        echo 'Waiting for MinIO to be ready...'
+        sleep 2
+      done &&
+      mc mb -p local/courses || true &&
+      mc mb -p local/certificates || true &&
+      mc mb -p local/documents || true &&
+      mc mb -p local/profiles || true &&
+      mc mb -p local/audio || true &&
+      mc mb -p local/slides || true &&
+      mc policy set public local/courses || true &&
+      mc policy set public local/certificates || true &&
+      mc policy set public local/profiles || true &&
+      echo 'MinIO buckets and policies configured successfully';
+      "
+    networks:
+      - openedu-network
+
+
+volumes:
+  pgdata:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  openedu-network:
+    driver: bridge

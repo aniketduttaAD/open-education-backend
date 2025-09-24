@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+/dist/
+/lib/
+/build/
+/coverage/
+/*.tgz
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+.cursor/
+.claude/
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Caches
+.npm/
+.yarn/
+.pnpm-store/
+.cache/
+.turbo/
+
+# Testing
+.nyc_output/
+
+# App local data
+uploads/
+temp/
+
+# Note: Do NOT ignore *.sql; schema files are tracked in database/init/
