@@ -25,24 +25,7 @@ import { JwtPayload } from '../../config/jwt.config';
 export class AIController {
   constructor(private readonly aiService: AIService) {}
 
-  @Post('courses/:courseId/roadmap')
-  @ApiOperation({ summary: 'Generate course roadmap (tutor only)' })
-  @ApiResponse({ status: 201, description: 'Roadmap generated successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid request data' })
-  @ApiBearerAuth()
-  @Roles('tutor')
-  @HttpCode(HttpStatus.CREATED)
-  async generateCourseRoadmap(
-    @CurrentUser() user: JwtPayload,
-    @Param('courseId') courseId: string,
-    @Body() generateRoadmapDto: GenerateRoadmapDto,
-  ) {
-    return this.aiService.generateCourseRoadmap(
-      generateRoadmapDto.title,
-      generateRoadmapDto.description,
-      generateRoadmapDto.level || 'beginner',
-    );
-  }
+  // Legacy roadmap route removed - use POST /api/roadmaps/generate instead
 
   @Post('topics/:topicId/content')
   @ApiOperation({ summary: 'Generate topic content (tutor only)' })

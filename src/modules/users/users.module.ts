@@ -9,10 +9,7 @@ import { StorageModule } from '../storage/storage.module';
 import { QueueModule } from '../queue/queue.module';
 import { TutorDocumentSet } from './entities/tutor-document-set.entity';
 import {
-  StudentAchievement,
-  StudentLoginStreak,
   StudentTokenAllocation,
-  StudentWishlist,
   TutorDocument,
   TutorWithdrawal,
   TutorLeaderboard,
@@ -25,10 +22,7 @@ import {
   imports: [
     TypeOrmModule.forFeature([
       User,
-      StudentAchievement,
-      StudentLoginStreak,
       StudentTokenAllocation,
-      StudentWishlist,
       TutorDocument,
       TutorDocumentSet,
       TutorWithdrawal,

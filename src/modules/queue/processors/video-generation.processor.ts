@@ -72,7 +72,7 @@ export class VideoGenerationProcessor {
           const videoJob = await this.aiService.queueVideoGeneration({
             courseId,
             lessonId: lesson.id,
-            content: lesson.content,
+            content: lesson.title, // Use title instead of content
             userId,
           });
           

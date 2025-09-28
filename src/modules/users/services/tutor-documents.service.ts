@@ -51,14 +51,14 @@ export class TutorDocumentsService {
       throw new NotFoundException('Tutor not found');
     }
 
-    if (user.tutor_details.verification_status === 'verified') {
+    if (user.document_verification === 'verified') {
       throw new BadRequestException('Tutor is already verified');
     }
 
     // Upload file with specific metadata for tutor verification
     const fileUploadData = {
       file_type: 'document' as const,
-      is_public: false,
+      is_public: false, 
       metadata: JSON.stringify({
         tutor_verification: true,
         document_type: uploadData.file_type,
@@ -123,14 +123,24 @@ export class TutorDocumentsService {
     });
 
     // Filter only verification documents
-    return documents.filter(doc => {
+    this.logger.log(`Found ${documents.length} documents for user ${userId}`);
+    
+    const filteredDocs = documents.filter(doc => {
       try {
-        const metadata = JSON.parse(typeof doc.metadata === 'string' ? doc.metadata : '{}');
-        return metadata.tutor_verification === true;
-      } catch {
+        // Metadata is already a JSONB object, no need to parse
+        const metadata = doc.metadata || {};
+        this.logger.log(`Document ${doc.id} metadata:`, metadata);
+        const isVerificationDoc = metadata.tutor_verification === true;
+        this.logger.log(`Document ${doc.id} is verification doc: ${isVerificationDoc}`);
+        return isVerificationDoc;
+      } catch (error) {
+        this.logger.error(`Error processing metadata for document ${doc.id}:`, error);
         return false;
       }
     });
+    
+    this.logger.log(`Filtered to ${filteredDocs.length} verification documents`);
+    return filteredDocs;
   }
 
   /**
@@ -145,7 +155,7 @@ export class TutorDocumentsService {
       throw new NotFoundException('Tutor not found');
     }
 
-    if (user.tutor_details.verification_status === 'verified') {
+    if (user.document_verification === 'verified') {
       throw new BadRequestException('Cannot delete documents for verified tutors');
     }
 
@@ -265,6 +275,34 @@ export class TutorDocumentsService {
   }
 
   /**
+   * Get verification document stream for direct serving
+   */
+  async getVerificationDocumentStream(userId: string, documentId: string): Promise<{ stream: any; file: any }> {
+    this.logger.log(`Getting verification document stream for user: ${userId}, document: ${documentId}`);
+
+    const user = await this.userRepository.findOne({ where: { id: userId, user_type: 'tutor' } });
+    if (!user || !user.tutor_details) {
+      throw new NotFoundException('Tutor not found');
+    }
+
+    const document = await this.fileRepository.findOne({ where: { id: documentId, user_id: userId, file_type: 'document' } });
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // Only allow access to verification documents
+    const metadata = document.metadata || {};
+    if (!metadata.tutor_verification) {
+      throw new BadRequestException('Document is not a verification document');
+    }
+
+    // Get the file stream
+    const { stream, file } = await this.storageService.getFileStream(documentId, userId);
+
+    return { stream, file };
+  }
+
+  /**
    * Get a time-limited download URL for a verification document
    */
   async getVerificationDocumentUrl(userId: string, documentId: string): Promise<string> {
@@ -280,11 +318,13 @@ export class TutorDocumentsService {
 
     // Only allow access to verification documents
     try {
-      const metadata = JSON.parse(typeof document.metadata === 'string' ? document.metadata : '{}');
+      // Metadata is already a JSONB object, no need to parse
+      const metadata = document.metadata || {};
       if (!metadata.tutor_verification) {
         throw new BadRequestException('Document is not a verification document');
       }
-    } catch {
+    } catch (error) {
+      this.logger.error(`Error processing metadata for document ${documentId}:`, error);
       throw new BadRequestException('Invalid document metadata');
     }
 

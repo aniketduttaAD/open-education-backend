@@ -10,11 +10,11 @@ export interface MinioConfig {
 }
 
 export const getMinioConfig = (configService: ConfigService): MinioConfig => {
-  const accessKey = configService.get<string>('MINIO_ACCESS_KEY');
-  const secretKey = configService.get<string>('MINIO_SECRET_KEY');
+  const accessKey = configService.get<string>('MINIO_ROOT_USER');
+  const secretKey = configService.get<string>('MINIO_ROOT_PASSWORD');
 
   if (!accessKey || !secretKey) {
-    throw new Error('MINIO_ACCESS_KEY and MINIO_SECRET_KEY are required');
+    throw new Error('MINIO_ROOT_USER and MINIO_ROOT_PASSWORD are required');
   }
 
   return {

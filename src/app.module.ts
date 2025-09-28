@@ -7,22 +7,8 @@ import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
-// import { StorageModule } from './modules/storage/storage.module';
-// import { CoursesModule } from './modules/courses/courses.module';
-// import { AIModule } from './modules/ai/ai.module';
-// import { WebSocketModule } from './modules/websocket/websocket.module';
-// import { GamificationModule } from './modules/gamification/gamification.module';
-// import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PaymentsModule } from './modules/payments/payments.module';
-// import { CertificatesModule } from './modules/certificates/certificates.module';
-// import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './modules/health/health.module';
-// import { QuizModule } from './modules/quiz/quiz.module';
-// import { ProgressModule } from './modules/progress/progress.module';
-// import { AdminModule } from './modules/admin/admin.module';
-// import { CategoryModule } from './modules/categories/category.module';
-// import { WishlistModule } from './modules/wishlist/wishlist.module';
-// import { QueueModule } from './modules/queue/queue.module';
 import { getDatabaseConfig, getWinstonConfig } from './config';
 import { JwtAuthGuard, RolesGuard } from './common/guards';
 import { ResponseInterceptor } from './common/interceptors';
@@ -30,6 +16,15 @@ import { ErrorTrackingFilter } from './common/filters';
 import { ValidationPipe } from './common/pipes';
 import { ApplicationLog } from './common/entities/application-log.entity';
 import { PostgresTransport } from './config/postgres-transport';
+import { RoadmapsModule } from './modules/roadmaps/roadmaps.module';
+import { AssessmentsModule } from './modules/assessments/assessments.module';
+import { AIBuddyModule } from './modules/aibuddy/aibuddy.module';
+import { CoursesModule } from './modules/courses/courses.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { WebSocketModule } from './modules/websocket/websocket.module';
+import { AIModule } from './modules/ai/ai.module';
+import { QueueModule } from './modules/queue/queue.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -49,22 +44,17 @@ import { PostgresTransport } from './config/postgres-transport';
     ]),
     AuthModule,
     UsersModule,
-    // StorageModule,
-    // CoursesModule,
-    // AIModule,
-    // WebSocketModule,
-    // GamificationModule,
-    // AnalyticsModule,
     PaymentsModule,
-    // CertificatesModule,
-    // NotificationsModule,
     HealthModule,
-    // QuizModule,
-    // ProgressModule,
-    // AdminModule,
-    // CategoryModule,
-    // WishlistModule,
-    // QueueModule,
+    RoadmapsModule,
+    AssessmentsModule,
+    AIBuddyModule,
+    CoursesModule,
+    StorageModule,
+    WebSocketModule,
+    AIModule,
+    QueueModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

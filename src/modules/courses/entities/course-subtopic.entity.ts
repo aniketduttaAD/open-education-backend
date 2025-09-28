@@ -7,9 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { CourseTopic } from './course-topic.entity';
-
-export type SubtopicType = 'video' | 'text' | 'quiz' | 'assignment' | 'resource';
+import { CourseSection } from './course-section.entity';
 
 @Entity('course_subtopics')
 export class CourseSubtopic {
@@ -17,34 +15,28 @@ export class CourseSubtopic {
   id!: string;
 
   @Column({ type: 'uuid' })
-  topic_id!: string;
-
-  @Column({ type: 'varchar', length: 200 })
-  title!: string;
-
-  @Column({ type: 'text' })
-  content!: string;
-
-  @Column({ type: 'varchar', length: 20 })
-  type!: SubtopicType;
+  section_id!: string;
 
   @Column({ type: 'integer' })
-  order_index!: number;
+  index!: number;
 
-  @Column({ type: 'integer', default: 0 })
-  duration_minutes!: number;
+  @Column({ type: 'varchar', length: 255 })
+  title!: string;
 
-  @Column({ type: 'varchar', length: 500, nullable: true })
+  @Column({ type: 'text', nullable: true })
+  markdown_path?: string;
+
+  @Column({ type: 'text', nullable: true })
+  transcript_path?: string;
+
+  @Column({ type: 'text', nullable: true })
+  audio_path?: string;
+
+  @Column({ type: 'text', nullable: true })
   video_url?: string;
 
-  @Column({ type: 'varchar', length: 500, nullable: true })
-  resource_url?: string;
-
-  @Column({ type: 'jsonb', nullable: true })
-  quiz_data?: Record<string, any>;
-
-  @Column({ type: 'boolean', default: false })
-  is_required!: boolean;
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  status?: string;
 
   @CreateDateColumn({ type: 'timestamp with time zone', default: () => 'now()' })
   created_at!: Date;
@@ -53,7 +45,7 @@ export class CourseSubtopic {
   updated_at!: Date;
 
   // Relations
-  @ManyToOne(() => CourseTopic, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'topic_id' })
-  topic?: CourseTopic;
+  @ManyToOne(() => CourseSection, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'section_id' })
+  section?: CourseSection;
 }

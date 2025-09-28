@@ -23,6 +23,11 @@ export class RolesGuard implements CanActivate {
       return false;
     }
     
+    // Owner admin has access to everything
+    if (user.isOwner && user.permissions?.includes('*')) {
+      return true;
+    }
+    
     return requiredRoles.some((role) => user.user_type === role);
   }
 }

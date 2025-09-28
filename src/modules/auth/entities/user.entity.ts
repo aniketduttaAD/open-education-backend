@@ -8,6 +8,7 @@ import {
 
 export type UserType = 'student' | 'tutor' | 'admin';
 export type GenderType = 'male' | 'female' | 'other';
+export type DocumentVerificationType = 'pending' | 'verified' | 'rejected';
 
 export interface TutorDetails {
   register_fees_paid: boolean;
@@ -84,6 +85,14 @@ export class User {
 
   @Column({ type: 'boolean', nullable: true })
   onboarding_complete?: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: ['pending', 'verified', 'rejected'],
+    default: 'pending',
+    nullable: true,
+  })
+  document_verification?: DocumentVerificationType;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at!: Date;

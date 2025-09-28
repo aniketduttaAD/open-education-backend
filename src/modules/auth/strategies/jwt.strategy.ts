@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from '../../../config/jwt.config';
 import { AuthService } from '../auth.service';
+import { getOwnerAdminConfig, OWNER_JWT_PAYLOAD } from '../../../config/owner-admin.config';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -27,6 +28,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       Logger.warn('JWT payload missing sub', JwtStrategy.name);
       throw new UnauthorizedException('Invalid token');
     }
+
+    // Check if this is the owner admin token
+    const ownerConfig = getOwnerAdminConfig(this.configService);
+    if (payload.sub === ownerConfig.ownerId && payload.email === ownerConfig.ownerEmail) {
+      Logger.log('Owner admin access granted', JwtStrategy.name);
+      return {
+        sub: payload.sub,
+        email: payload.email,
+        user_type: 'admin' as const,
+        isOwner: true,
+        permissions: ['*'],
+      };
+    }
+
     const user = await this.authService.validateUser(payload.sub);
     
     if (!user) {
@@ -38,6 +53,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sub: user.id,
       email: user.email,
       user_type: user.user_type,
+      isOwner: false,
     };
   }
 }

@@ -31,6 +31,8 @@ export interface JwtPayload {
   sub: string; // user ID
   email: string;
   user_type: 'student' | 'tutor' | 'admin';
+  isOwner?: boolean;
+  permissions?: string[];
   iat?: number;
   exp?: number;
 }

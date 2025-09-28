@@ -9,10 +9,10 @@ import {
   Index,
 } from 'typeorm';
 import { Course } from '../../courses/entities/course.entity';
-import { CourseTopic } from '../../courses/entities/course-topic.entity';
+import { CourseSection } from '../../courses/entities/course-section.entity';
 import { CourseSubtopic } from '../../courses/entities/course-subtopic.entity';
 
-export type ContentType = 'course' | 'topic' | 'subtopic' | 'quiz' | 'flashcard' | 'transcript' | 'notes';
+export type ContentType = 'course' | 'section' | 'subtopic' | 'quiz' | 'flashcard' | 'transcript' | 'notes';
 
 @Entity('vector_embeddings')
 @Index(['course_id', 'content_type'])
@@ -29,7 +29,7 @@ export class VectorEmbedding {
 
   @Column({
     type: 'enum',
-    enum: ['course', 'topic', 'subtopic', 'quiz', 'flashcard', 'transcript', 'notes'],
+    enum: ['course', 'section', 'subtopic', 'quiz', 'flashcard', 'transcript', 'notes'],
   })
   content_type!: ContentType;
 
@@ -69,9 +69,9 @@ export class VectorEmbedding {
   @JoinColumn({ name: 'course_id' })
   course?: Course;
 
-  @ManyToOne(() => CourseTopic, { onDelete: 'CASCADE' })
+  @ManyToOne(() => CourseSection, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'content_id' })
-  topic?: CourseTopic;
+  section?: CourseSection;
 
   @ManyToOne(() => CourseSubtopic, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'content_id' })

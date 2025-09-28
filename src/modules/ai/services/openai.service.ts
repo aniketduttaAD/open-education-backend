@@ -17,6 +17,40 @@ export class OpenAIService {
     });
   }
 
+  async generateTopicMarkdown(params: {
+    sectionTitle: string;
+    subtopicTitle: string;
+    roadmapJson: string;
+    prevSummary: string;
+    nextSummary: string;
+  }): Promise<string> {
+    const prompt = [
+      'Role: You are an expert educator writing a comprehensive, approachable subtopic guide in Markdown.',
+      'Return ONLY Markdown. No YAML frontmatter. No extra commentary.',
+      '',
+      `Section: ${params.sectionTitle}`,
+      `Subtopic: ${params.subtopicTitle}`,
+      `Roadmap context: ${params.roadmapJson}`,
+      `Previous summary: ${params.prevSummary}`,
+      `Next summary: ${params.nextSummary}`,
+      '',
+      '# {{title}}\n\n## Previously on\n- ...\n\n## Deep dive\n...\n\n## Best practices and pitfalls\n- ...\n\n## Up next\n- ...\n\n## Practice\n- Task 1\n- Task 2',
+    ].join('\n');
+    return this.generateText(prompt);
+  }
+
+  async generateTranscriptFromMarkdown(subtopicTitle: string, sectionTitle: string, markdownContent: string): Promise<string> {
+    const prompt = [
+      'Role: You are a lecturer producing a clear, engaging, timestamped transcript covering the subtopic content below. Output plain text. No Markdown.',
+      `Title: ${subtopicTitle}`,
+      `Section: ${sectionTitle}`,
+      'Markdown content (source of truth):',
+      markdownContent,
+      '',
+      'Output format example:\n00:00 Title and overview...\n01:30 Previously on: ...\n03:10 Deep dive: ...',
+    ].join('\n');
+    return this.generateText(prompt, { maxTokens: 3000, temperature: 0.4 });
+  }
   /**
    * Generate text content using GPT-4
    */

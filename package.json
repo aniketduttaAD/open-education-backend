@@ -20,6 +20,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@nestjs/bullmq": "^10.1.1",
+    "bullmq": "^5.9.0",
+    "@aws-sdk/client-s3": "^3.895.0",
+    "@aws-sdk/s3-request-presigner": "^3.895.0",
     "@marp-team/marp-cli": "^4.2.3",
     "@nestjs/cache-manager": "^2.3.0",
     "@nestjs/common": "^10.4.20",
@@ -54,6 +58,7 @@
     "pdfkit": "^0.17.2",
     "pg": "^8.16.3",
     "pgvector": "^0.2.1",
+    "redis": "^4.7.0",
     "qrcode": "^1.5.4",
     "razorpay": "^2.9.6",
     "reflect-metadata": "^0.1.14",

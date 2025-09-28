@@ -163,8 +163,25 @@ export class OrderPaymentsService {
     const razorpayPayment = await this.razorpayService.getPayment(verifyDto.razorpayPaymentId);
 
     // Amount parity check
-    if (typeof razorpayPayment.amount === 'number' && order.amount !== razorpayPayment.amount) {
-      this.logger.error(`Amount mismatch for order ${order.id}: local=${order.amount} gateway=${razorpayPayment.amount}`);
+    // Convert both amounts to numbers to handle potential string conversion from database
+    const orderAmount = typeof order.amount === 'string' 
+      ? parseInt(order.amount, 10) 
+      : Number(order.amount);
+    
+    const razorpayAmount = typeof razorpayPayment.amount === 'string' 
+      ? parseInt(razorpayPayment.amount, 10) 
+      : Number(razorpayPayment.amount);
+    
+    // Detailed logging for debugging
+    this.logger.log(`Amount comparison debug:`);
+    this.logger.log(`  Order amount: ${order.amount} -> ${orderAmount} (type: ${typeof orderAmount})`);
+    this.logger.log(`  Razorpay amount: ${razorpayPayment.amount} -> ${razorpayAmount} (type: ${typeof razorpayAmount})`);
+    this.logger.log(`  Strict equality: ${orderAmount === razorpayAmount}`);
+    this.logger.log(`  Loose equality: ${orderAmount == razorpayAmount}`);
+    
+    if (orderAmount !== razorpayAmount) {
+      this.logger.error(`Amount mismatch for order ${order.id}: local=${orderAmount} gateway=${razorpayAmount}`);
+      this.logger.error(`Original values - Order: ${order.amount} (${typeof order.amount}), Razorpay: ${razorpayPayment.amount} (${typeof razorpayPayment.amount})`);
       throw new BadRequestException('Payment amount mismatch');
     }
 

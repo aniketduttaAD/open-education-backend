@@ -15,12 +15,16 @@ export class MinioService {
   private readonly buckets: string[];
 
   constructor(private configService: ConfigService) {
+    // Use internal endpoint for client operations (Docker network)
+    const internalEndpoint = this.configService.get<string>('MINIO_ENDPOINT_INTERNAL', 'minio');
+    const internalPort = parseInt(this.configService.get<string>('MINIO_PORT', '9000'));
+    
     this.minioClient = new Minio.Client({
-      endPoint: 'minio', // Docker service name
-      port: 9000, // Hardcoded
-      useSSL: false, // Hardcoded
-      accessKey: this.configService.get<string>('MINIO_ACCESS_KEY', 'minioadmin'),
-      secretKey: this.configService.get<string>('MINIO_SECRET_KEY', 'minioadmin'),
+      endPoint: internalEndpoint, // Always use internal endpoint for client operations
+      port: internalPort,
+      useSSL: this.configService.get<string>('MINIO_USE_SSL', 'false') === 'true',
+      accessKey: this.configService.get<string>('MINIO_ROOT_USER', 'minioadmin'),
+      secretKey: this.configService.get<string>('MINIO_ROOT_PASSWORD', 'minioadmin'),
     });
 
     this.buckets = Object.values(MINIO_BUCKETS);
@@ -73,12 +77,36 @@ export class MinioService {
     expiresInSeconds: number = 3600,
   ): Promise<string> {
     try {
+      // Get external endpoint configuration for presigned URLs
+      const externalEndpoint = this.configService.get<string>('MINIO_ENDPOINT_EXTERNAL', 'localhost:9000');
+      const useSSL = this.configService.get<string>('MINIO_USE_SSL', 'false') === 'true';
+      const protocol = useSSL ? 'https' : 'http';
+      
+      // Use the internal client to generate presigned URL
       const url = await this.minioClient.presignedGetObject(bucketName, objectName, expiresInSeconds);
+      
+      // Replace the internal hostname with external hostname in the URL
+      const externalUrl = url.replace(/https?:\/\/[^\/]+/, `${protocol}://${externalEndpoint}`);
+      
       this.logger.log(`Generated presigned download URL for ${bucketName}/${objectName}`);
-      return url;
+      return externalUrl;
     } catch (error) {
       this.logger.error(`Failed to generate presigned download URL:`, error);
       throw new BadRequestException('Failed to generate download URL');
+    }
+  }
+
+  /**
+   * Get file stream from MinIO
+   */
+  async getFileStream(bucketName: string, objectName: string): Promise<any> {
+    try {
+      const stream = await this.minioClient.getObject(bucketName, objectName);
+      this.logger.log(`Retrieved file stream for ${bucketName}/${objectName}`);
+      return stream;
+    } catch (error) {
+      this.logger.error(`Failed to get file stream:`, error);
+      throw new BadRequestException('Failed to retrieve file');
     }
   }
 
@@ -122,12 +150,12 @@ export class MinioService {
    * Get file URL
    */
   async getFileUrl(bucketName: string, objectName: string): Promise<string> {
-    const endpoint = 'minio'; // Docker service name
-    const port = 9000; // Hardcoded
-    const useSSL = false; // Hardcoded
+    // Use external endpoint for URLs (accessible from outside Docker)
+    const externalEndpoint = this.configService.get<string>('MINIO_ENDPOINT_EXTERNAL', 'localhost:9000');
+    const useSSL = this.configService.get<string>('MINIO_USE_SSL', 'false') === 'true';
     
     const protocol = useSSL ? 'https' : 'http';
-    return `${protocol}://${endpoint}:${port}/${bucketName}/${objectName}`;
+    return `${protocol}://${externalEndpoint}/${bucketName}/${objectName}`;
   }
 
   /**
@@ -152,6 +180,27 @@ export class MinioService {
     } catch (error) {
       this.logger.error(`Failed to get file metadata:`, error);
       throw new BadRequestException('Failed to get file metadata');
+    }
+  }
+
+  /**
+   * Stream object from MinIO. If range is provided, uses partial reads.
+   */
+  async getObjectStream(
+    bucketName: string,
+    objectName: string,
+    rangeStart?: number,
+    rangeEnd?: number,
+  ): Promise<NodeJS.ReadableStream> {
+    try {
+      if (typeof rangeStart === 'number' && typeof rangeEnd === 'number') {
+        const length = rangeEnd - rangeStart + 1;
+        return await this.minioClient.getPartialObject(bucketName, objectName, rangeStart, length);
+      }
+      return await this.minioClient.getObject(bucketName, objectName);
+    } catch (error) {
+      this.logger.error(`Failed to get object stream:`, error);
+      throw new BadRequestException('Failed to stream object');
     }
   }
 

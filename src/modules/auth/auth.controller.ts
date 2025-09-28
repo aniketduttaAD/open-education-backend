@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Get,
-  Put,
   Body,
   UseGuards,
   HttpCode,
@@ -13,34 +12,38 @@ import {
 import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { GoogleLoginDto, RefreshTokenDto, CreateUserDto, UpdateUserDto } from './dto';
-import { JwtAuthGuard, RolesGuard } from '../../common/guards';
-import { GoogleOAuthGuard } from './guards';
-import { Roles, CurrentUser, Public } from '../../common/decorators';
+import { OwnerAdminService } from './services/owner-admin.service';
+import { GoogleLoginDto, RefreshTokenDto } from './dto';
+import { JwtAuthGuard } from '../../common/guards';
+import { CurrentUser, Public } from '../../common/decorators';
 import { JwtPayload } from '../../config/jwt.config';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly ownerAdminService: OwnerAdminService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
-  @UseGuards(GoogleOAuthGuard)
   @Get('google')
-  @ApiOperation({ summary: 'Initiate Google OAuth login' })
-  @ApiResponse({ status: 302, description: 'Redirect to Google OAuth' })
+  @ApiOperation({ summary: 'Deprecated: use One Tap /auth/google/login' })
+  @ApiResponse({ status: 302, description: 'Redirect to frontend login' })
   async googleAuth(@Req() req: Request, @Res() res: Response) {
-    // This will be handled by the GoogleOAuthGuard
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    return res.redirect(`${frontendUrl}/login?method=one-tap`);
   }
 
   @Public()
-  @UseGuards(GoogleOAuthGuard)
   @Get('google/callback')
-  @ApiOperation({ summary: 'Google OAuth callback' })
-  @ApiResponse({ status: 200, description: 'OAuth callback successful' })
-  @ApiResponse({ status: 401, description: 'OAuth callback failed' })
+  @ApiOperation({ summary: 'Deprecated: use One Tap /auth/google/login' })
+  @ApiResponse({ status: 302, description: 'Redirect to frontend login' })
   async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    return this.authService.googleAuthRedirect(req, res);
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    return res.redirect(`${frontendUrl}/login?method=one-tap`);
   }
 
   @Public()
@@ -75,7 +78,41 @@ export class AuthController {
     return this.authService.logout(user.sub);
   }
 
-  // Profile routes live under `users` module.
+  @Public()
+  @Get('owner/token')
+  @ApiOperation({ summary: 'Get owner admin JWT token (development only)' })
+  @ApiResponse({ status: 200, description: 'Owner token generated successfully' })
+  async getOwnerToken() {
+    const token = await this.ownerAdminService.generateOwnerToken();
+    const ownerInfo = this.ownerAdminService.getOwnerInfo();
+    
+    return {
+      success: true,
+      data: {
+        token,
+        owner: ownerInfo,
+        expires_in: '365d',
+        permissions: ['*'],
+      },
+      message: 'Owner admin token generated successfully',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Public()
+  @Get('owner/info')
+  @ApiOperation({ summary: 'Get owner admin information' })
+  @ApiResponse({ status: 200, description: 'Owner info retrieved successfully' })
+  async getOwnerInfo() {
+    const ownerInfo = this.ownerAdminService.getOwnerInfo();
+    
+    return {
+      success: true,
+      data: ownerInfo,
+      message: 'Owner admin information retrieved successfully',
+      timestamp: new Date().toISOString(),
+    };
+  }
 
   // Profile routes live under `users` module.
 }

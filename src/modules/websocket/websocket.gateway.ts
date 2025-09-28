@@ -14,6 +14,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../../common/guards';
 import { AIService } from '../ai/services/ai.service';
+import { CoursesService } from '../courses/services/courses.service';
+import { ProgressUpdate } from './interfaces/progress-update.interface';
 
 /**
  * WebSocket Gateway for real-time features
@@ -39,6 +41,8 @@ export class WebSocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
     private configService: ConfigService,
     @Inject(forwardRef(() => AIService))
     private aiService: AIService,
+    @Inject(forwardRef(() => CoursesService))
+    private coursesService: CoursesService,
   ) {}
 
   afterInit(server: Server) {
@@ -329,5 +333,182 @@ export class WebSocketGateway implements OnGatewayInit, OnGatewayConnection, OnG
 
   isUserConnected(userId: string): boolean {
     return this.userSockets.has(userId);
+  }
+
+  // Course-specific lifecycle event methods
+  /**
+   * Join a course-specific channel for real-time updates
+   */
+  @SubscribeMessage('course:join')
+  async handleJoinCourse(
+    @MessageBody() data: { courseId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userId = this.connectedUsers.get(client.id);
+    if (!userId) {
+      client.emit('error', { message: 'User not authenticated' });
+      return;
+    }
+
+    try {
+      // Authorization check - verify user is tutor or enrolled student
+      const hasAccess = await this.checkCourseAccess(userId, data.courseId);
+      if (!hasAccess) {
+        client.emit('error', { 
+          message: 'Access denied. You must be the course tutor or an enrolled student.',
+          code: 'COURSE_ACCESS_DENIED'
+        });
+        return;
+      }
+
+      const courseChannel = `courses:${data.courseId}`;
+      await client.join(courseChannel);
+
+      this.logger.log(`User ${userId} joined course channel: ${courseChannel}`);
+      
+      client.emit('course:joined', {
+        courseId: data.courseId,
+        channel: courseChannel,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(`Failed to join course channel for user ${userId}:`, error);
+      client.emit('error', { 
+        message: 'Failed to join course channel',
+        code: 'JOIN_FAILED'
+      });
+    }
+  }
+
+  /**
+   * Leave a course-specific channel
+   */
+  @SubscribeMessage('course:leave')
+  async handleLeaveCourse(
+    @MessageBody() data: { courseId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userId = this.connectedUsers.get(client.id);
+    if (!userId) {
+      client.emit('error', { message: 'User not authenticated' });
+      return;
+    }
+
+    const courseChannel = `courses:${data.courseId}`;
+    await client.leave(courseChannel);
+
+    this.logger.log(`User ${userId} left course channel: ${courseChannel}`);
+    
+    client.emit('course:left', {
+      courseId: data.courseId,
+      channel: courseChannel,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit event to all users in a course channel
+   */
+  emitToCourseChannel(courseId: string, event: string, data: any) {
+    const courseChannel = `courses:${courseId}`;
+    this.server.to(courseChannel).emit(event, data);
+    this.logger.log(`Emitted ${event} to course channel: ${courseChannel}`);
+  }
+
+  /**
+   * Emit roadmap lifecycle events
+   */
+  emitRoadmapEvent(courseId: string, event: 'roadmap_generate_started' | 'roadmap_generate_done' | 'roadmap_edit_applied', data: any) {
+    this.emitToCourseChannel(courseId, event, {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit finalize lifecycle events
+   */
+  emitFinalizeEvent(courseId: string, event: 'finalize_started' | 'finalize_done', data: any) {
+    this.emitToCourseChannel(courseId, event, {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit content job events
+   */
+  emitJobEvent(courseId: string, event: 'job_started' | 'markdown_done' | 'transcript_done' | 'slides_done' | 'audio_done' | 'video_done' | 'upload_done' | 'job_completed' | 'job_failed', data: any) {
+    this.emitToCourseChannel(courseId, event, {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit embeddings events
+   */
+  emitEmbeddingsEvent(courseId: string, event: 'embeddings_started' | 'embeddings_done', data: any) {
+    this.emitToCourseChannel(courseId, event, {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit assessment events
+   */
+  emitAssessmentEvent(courseId: string, event: 'quiz_started' | 'quiz_done' | 'flashcards_started' | 'flashcards_done', data: any) {
+    this.emitToCourseChannel(courseId, event, {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit progress updates for content generation
+   */
+  emitProgressUpdate(courseId: string, progressData: ProgressUpdate) {
+    this.emitToCourseChannel(courseId, 'content_generation_progress', {
+      ...progressData,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Emit progress updates for specific phases
+   */
+  emitProgressPhase(courseId: string, phase: string, progressData: ProgressUpdate) {
+    this.emitToCourseChannel(courseId, `progress:${phase}`, {
+      ...progressData,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Check if user has access to a course (tutor or enrolled student)
+   */
+  private async checkCourseAccess(userId: string, courseId: string): Promise<boolean> {
+    try {
+      // Get course details
+      const course = await this.coursesService.getCourseById(courseId);
+      if (!course) {
+        return false;
+      }
+
+      // Check if user is the course tutor
+      if (course.tutor_user_id === userId) {
+        return true;
+      }
+
+      // Check if user is enrolled as a student
+      const enrollments = await this.coursesService.getStudentEnrollments(userId);
+      const isEnrolled = enrollments.some((enrollment: any) => enrollment.course_id === courseId);
+      
+      return isEnrolled;
+    } catch (error) {
+      this.logger.error(`Failed to check course access for user ${userId} in course ${courseId}:`, error);
+      return false;
+    }
   }
 }

@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
 import {
-  StudentAchievement,
-  StudentLoginStreak,
   StudentTokenAllocation,
-  StudentWishlist,
   TutorDocument,
   // TutorEarning, // Commented out - duplicate entity exists in PaymentsModule
   TutorWithdrawal,
@@ -27,14 +24,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(StudentAchievement)
-    private studentAchievementRepository: Repository<StudentAchievement>,
-    @InjectRepository(StudentLoginStreak)
-    private studentLoginStreakRepository: Repository<StudentLoginStreak>,
     @InjectRepository(StudentTokenAllocation)
     private studentTokenAllocationRepository: Repository<StudentTokenAllocation>,
-    @InjectRepository(StudentWishlist)
-    private studentWishlistRepository: Repository<StudentWishlist>,
     @InjectRepository(TutorDocument)
     private tutorDocumentRepository: Repository<TutorDocument>,
     // @InjectRepository(TutorEarning) // Commented out - duplicate entity exists in PaymentsModule
@@ -225,8 +216,7 @@ export class UsersService {
 
     await this.userRepository.save(user);
 
-    // Create initial login streak record
-    await this.createInitialLoginStreak(userId);
+    // Legacy gamification initialization removed - module deleted
 
     this.logger.log(`Student onboarding completed for user: ${userId}`);
     return this.getCurrentUser(userId);
@@ -355,28 +345,7 @@ export class UsersService {
     };
   }
 
-  /**
-   * Get student achievements
-   */
-  async getStudentAchievements(userId: string): Promise<StudentAchievement[]> {
-    this.logger.log(`Getting achievements for student: ${userId}`);
-
-    return this.studentAchievementRepository.find({
-      where: { user_id: userId },
-      order: { earned_at: 'DESC' },
-    });
-  }
-
-  /**
-   * Get student login streak
-   */
-  async getStudentLoginStreak(userId: string): Promise<StudentLoginStreak | null> {
-    this.logger.log(`Getting login streak for student: ${userId}`);
-
-    return this.studentLoginStreakRepository.findOne({
-      where: { user_id: userId },
-    });
-  }
+  // Legacy gamification methods removed - module deleted
 
   /**
    * Get student token allocations
@@ -390,61 +359,13 @@ export class UsersService {
     });
   }
 
-  /**
-   * Get student wishlist
-   */
-  async getStudentWishlist(userId: string): Promise<StudentWishlist[]> {
-    this.logger.log(`Getting wishlist for student: ${userId}`);
-
-    return this.studentWishlistRepository.find({
-      where: { user_id: userId, is_active: true },
-      order: { created_at: 'DESC' },
-    });
-  }
-
-  /**
-   * Add course to wishlist
-   */
-  async addToWishlist(userId: string, courseId: string): Promise<StudentWishlist> {
-    this.logger.log(`Adding course ${courseId} to wishlist for student: ${userId}`);
-
-    const existingWishlistItem = await this.studentWishlistRepository.findOne({
-      where: { user_id: userId, course_id: courseId },
-    });
-
-    if (existingWishlistItem) {
-      existingWishlistItem.is_active = true;
-      return this.studentWishlistRepository.save(existingWishlistItem);
-    }
-
-    const wishlistItem = this.studentWishlistRepository.create({
-      user_id: userId,
-      course_id: courseId,
-      is_active: true,
-    });
-
-    return this.studentWishlistRepository.save(wishlistItem);
-  }
-
-  /**
-   * Remove course from wishlist
-   */
-  async removeFromWishlist(userId: string, courseId: string): Promise<void> {
-    this.logger.log(`Removing course ${courseId} from wishlist for student: ${userId}`);
-
-    await this.studentWishlistRepository.update(
-      { user_id: userId, course_id: courseId },
-      { is_active: false }
-    );
-  }
+  // Legacy wishlist methods removed - module deleted
 
   /**
    * Get tutor earnings
    */
   async getTutorEarnings(userId: string): Promise<any[]> {
     this.logger.log(`Getting earnings for tutor: ${userId}`);
-    // Minimal placeholder to satisfy controller without cross-module entity
-    // In production, fetch from Payments module or dedicated earnings table
     return [];
   }
 
@@ -478,27 +399,7 @@ export class UsersService {
     });
   }
 
-  /**
-   * Create initial login streak record
-   */
-  private async createInitialLoginStreak(userId: string): Promise<void> {
-    const existingStreak = await this.studentLoginStreakRepository.findOne({
-      where: { user_id: userId },
-    });
-
-    if (!existingStreak) {
-      const loginStreak = this.studentLoginStreakRepository.create({
-        user_id: userId,
-        current_streak: 0,
-        best_streak: 0,
-        last_login_date: new Date(),
-        total_login_days: 0,
-        streak_bonus_multiplier: 1,
-      });
-
-      await this.studentLoginStreakRepository.save(loginStreak);
-    }
-  }
+  // Legacy gamification method removed - module deleted
 
   /**
    * Create initial leaderboard entry

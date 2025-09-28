@@ -1,6 +1,9 @@
 export { Course } from './course.entity';
-export { CourseTopic } from './course-topic.entity';
+export { CourseSection } from './course-section.entity';
 export { CourseSubtopic } from './course-subtopic.entity';
 export { CourseEnrollment } from './course-enrollment.entity';
 export { CourseReview } from './course-review.entity';
 export { ReviewReply } from './review-reply.entity';
+export { CourseRoadmap } from './course-roadmap.entity';
+export { CourseGenerationProgress } from './course-generation-progress.entity';
+export { Embeddings } from './embeddings.entity';

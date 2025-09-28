@@ -40,15 +40,12 @@ export class AuthService {
     let user = await this.userRepository.findOne({ where: { email: oauth.email } });
 
     if (!user) {
-      const defaultUserType = this.configService.get<'student' | 'tutor' | 'admin'>('DEFAULT_USER_TYPE');
-      if (!defaultUserType) {
-        throw new UnauthorizedException('DEFAULT_USER_TYPE is not configured');
-      }
       user = this.userRepository.create({
         email: oauth.email,
         name: oauth.name || oauth.email.split('@')[0],
         image: oauth.image,
-        user_type: defaultUserType,
+        user_type: null,
+        onboarding_complete: false,
       });
       user = await this.userRepository.save(user);
     } else {
@@ -101,15 +98,12 @@ export class AuthService {
     // Find or create user
     let user = await this.userRepository.findOne({ where: { email } });
     if (!user) {
-      const defaultUserType = this.configService.get<'student' | 'tutor' | 'admin'>('DEFAULT_USER_TYPE');
-      if (!defaultUserType) {
-        throw new UnauthorizedException('DEFAULT_USER_TYPE is not configured');
-      }
       user = this.userRepository.create({
         email,
         name: name || email.split('@')[0],
         image,
-        user_type: defaultUserType,
+        user_type: null,
+        onboarding_complete: false,
       });
       user = await this.userRepository.save(user);
     } else {

@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebSocketGateway } from './websocket.gateway';
 import { AIModule } from '../ai/ai.module';
+import { CoursesModule } from '../courses/courses.module';
 
 /**
  * WebSocket module for real-time features
@@ -20,6 +21,7 @@ import { AIModule } from '../ai/ai.module';
       inject: [ConfigService],
     }),
     forwardRef(() => AIModule),
+    forwardRef(() => CoursesModule),
   ],
   providers: [WebSocketGateway],
   exports: [WebSocketGateway],

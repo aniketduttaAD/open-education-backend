@@ -184,13 +184,24 @@ export class StorageService {
       return file.file_url;
     }
 
-    // Generate presigned URL for private files
+    // Generate presigned URL for other private files
     const expiresInSeconds = 3600; // 1 hour
     return await this.minioService.generatePresignedDownloadUrl(
       file.bucket_name,
       file.object_key,
       expiresInSeconds,
     );
+  }
+
+  /**
+   * Get file stream for direct serving
+   */
+  async getFileStream(fileId: string, userId?: string): Promise<{ stream: any; file: any }> {
+    const file = await this.getFile(fileId, userId);
+    
+    const stream = await this.minioService.getFileStream(file.bucket_name, file.object_key);
+    
+    return { stream, file };
   }
 
   /**

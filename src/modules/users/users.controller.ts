@@ -13,6 +13,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -124,23 +125,7 @@ export class UsersController {
     return this.usersService.getStudents(page, limit);
   }
 
-  @Get('me/achievements')
-  @ApiOperation({ summary: 'Get student achievements' })
-  @ApiResponse({ status: 200, description: 'Achievements retrieved successfully' })
-  @ApiBearerAuth()
-  @Roles('student')
-  async getStudentAchievements(@CurrentUser() user: JwtPayload) {
-    return this.usersService.getStudentAchievements(user.sub);
-  }
-
-  @Get('me/login-streak')
-  @ApiOperation({ summary: 'Get student login streak' })
-  @ApiResponse({ status: 200, description: 'Login streak retrieved successfully' })
-  @ApiBearerAuth()
-  @Roles('student')
-  async getStudentLoginStreak(@CurrentUser() user: JwtPayload) {
-    return this.usersService.getStudentLoginStreak(user.sub);
-  }
+  // Legacy gamification endpoints removed - module deleted
 
   @Get('me/token-allocations')
   @ApiOperation({ summary: 'Get student token allocations' })
@@ -151,40 +136,7 @@ export class UsersController {
     return this.usersService.getStudentTokenAllocations(user.sub);
   }
 
-  @Get('me/wishlist')
-  @ApiOperation({ summary: 'Get student wishlist' })
-  @ApiResponse({ status: 200, description: 'Wishlist retrieved successfully' })
-  @ApiBearerAuth()
-  @Roles('student')
-  async getStudentWishlist(@CurrentUser() user: JwtPayload) {
-    return this.usersService.getStudentWishlist(user.sub);
-  }
-
-  @Post('me/wishlist/courses/:courseId')
-  @ApiOperation({ summary: 'Add course to wishlist' })
-  @ApiResponse({ status: 201, description: 'Course added to wishlist successfully' })
-  @ApiBearerAuth()
-  @Roles('student')
-  @HttpCode(HttpStatus.CREATED)
-  async addToWishlist(
-    @CurrentUser() user: JwtPayload,
-    @Param('courseId') courseId: string,
-  ) {
-    return this.usersService.addToWishlist(user.sub, courseId);
-  }
-
-  @Delete('me/wishlist/courses/:courseId')
-  @ApiOperation({ summary: 'Remove course from wishlist' })
-  @ApiResponse({ status: 200, description: 'Course removed from wishlist successfully' })
-  @ApiBearerAuth()
-  @Roles('student')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async removeFromWishlist(
-    @CurrentUser() user: JwtPayload,
-    @Param('courseId') courseId: string,
-  ) {
-    await this.usersService.removeFromWishlist(user.sub, courseId);
-  }
+  // Legacy wishlist endpoints removed - module deleted
 
   @Get('me/earnings')
   @ApiOperation({ summary: 'Get tutor earnings' })
@@ -322,6 +274,29 @@ export class UsersController {
       message: 'Verification document URL generated successfully',
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get('tutors/documents/:documentId/download')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download verification document directly' })
+  @ApiResponse({ status: 200, description: 'Document downloaded successfully' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  async downloadVerificationDocument(
+    @CurrentUser() user: JwtPayload,
+    @Param('documentId') documentId: string,
+    @Res() res: any,
+  ) {
+    const { stream, file } = await this.tutorDocumentsService.getVerificationDocumentStream(user.sub, documentId);
+    
+    // Set appropriate headers
+    res.set({
+      'Content-Type': file.mime_type,
+      'Content-Disposition': `attachment; filename="${file.original_name}"`,
+      'Content-Length': file.file_size,
+    });
+    
+    // Pipe the stream to response
+    stream.pipe(res);
   }
 
   @Get('tutors/verification-status')

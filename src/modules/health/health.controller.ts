@@ -4,6 +4,7 @@ import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator, MemoryHealthIn
 import { Public } from '../../common/decorators/public.decorator';
 import { MinioService } from '../storage/services/minio.service';
 import { AIService } from '../ai/services/ai.service';
+import { InfrastructureValidationService } from './services/infrastructure-validation.service';
 
 /**
  * Health check controller for monitoring system status
@@ -19,6 +20,7 @@ export class HealthController {
     private disk: DiskHealthIndicator,
     private minioService: MinioService,
     private aiService: AIService,
+    private infrastructureValidation: InfrastructureValidationService,
   ) {}
 
   @Get()
@@ -81,6 +83,14 @@ export class HealthController {
     return this.health.check([
       () => this.checkAI(),
     ]);
+  }
+
+  @Get('infrastructure')
+  @Public()
+  @ApiOperation({ summary: 'Complete infrastructure validation' })
+  @ApiResponse({ status: 200, description: 'Infrastructure validation results' })
+  async checkInfrastructure() {
+    return this.infrastructureValidation.getHealthSummary();
   }
 
   private async checkMinIO() {

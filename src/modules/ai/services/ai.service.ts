@@ -9,7 +9,7 @@ import { RAGService } from './rag.service';
 import { AIBuddyUsage } from '../entities';
 import { StudentTokenAllocation } from '../../users/entities';
 import { CourseSubtopic } from '../../courses/entities/course-subtopic.entity';
-import { CourseTopic } from '../../courses/entities/course-topic.entity';
+import { CourseSection } from '../../courses/entities/course-section.entity';
 import { QueueService } from '../../queue/services/queue.service';
 
 /**
@@ -26,8 +26,8 @@ export class AIService {
     private studentTokenAllocationRepository: Repository<StudentTokenAllocation>,
     @InjectRepository(CourseSubtopic)
     private courseSubtopicRepository: Repository<CourseSubtopic>,
-    @InjectRepository(CourseTopic)
-    private courseTopicRepository: Repository<CourseTopic>,
+    @InjectRepository(CourseSection)
+    private courseSectionRepository: Repository<CourseSection>,
     private openaiService: OpenAIService,
     // LangChain removed
     private videoGenerationService: VideoGenerationService,
@@ -597,20 +597,20 @@ Generate 5-8 slides that cover the key concepts clearly and concisely.`;
   /**
    * Get course lessons (for queue processor)
    */
-  async getCourseLessons(courseId: string): Promise<Array<{ id: string; content: string }>> {
+  async getCourseLessons(courseId: string): Promise<Array<{ id: string; title: string }>> {
     this.logger.log(`Getting lessons for course: ${courseId}`);
     
     try {
       const subtopics = await this.courseSubtopicRepository
         .createQueryBuilder('subtopic')
-        .leftJoin('subtopic.topic', 'topic')
-        .where('topic.course_id = :courseId', { courseId })
-        .select(['subtopic.id', 'subtopic.content'])
+        .leftJoin('subtopic.section', 'section')
+        .where('section.course_id = :courseId', { courseId })
+        .select(['subtopic.id', 'subtopic.title'])
         .getMany();
 
       return subtopics.map(subtopic => ({
         id: subtopic.id,
-        content: subtopic.content,
+        title: subtopic.title,
       }));
     } catch (error) {
       this.logger.error(`Failed to get lessons for course ${courseId}:`, error);
@@ -651,17 +651,15 @@ Generate 5-8 slides that cover the key concepts clearly and concisely.`;
     this.logger.log(`Saving roadmap for course: ${courseId}`);
     
     try {
-      // Save topics from roadmap
-      for (const topicData of roadmap.topics) {
-        const topic = this.courseTopicRepository.create({
+      // Save sections from roadmap
+      for (const sectionData of roadmap.sections) {
+        const section = this.courseSectionRepository.create({
           course_id: courseId,
-          title: topicData.title,
-          description: topicData.description,
-          order_index: topicData.order,
-          learning_objectives: topicData.learningObjectives || [],
+          title: sectionData.title,
+          index: sectionData.order,
         });
 
-        await this.courseTopicRepository.save(topic);
+        await this.courseSectionRepository.save(section);
       }
 
       this.logger.log(`Roadmap saved for course: ${courseId}`);
@@ -693,22 +691,22 @@ Generate 5-8 slides that cover the key concepts clearly and concisely.`;
     this.logger.log(`Getting content for course: ${courseId}`);
     
     try {
-      const topics = await this.courseTopicRepository.find({
+      const sections = await this.courseSectionRepository.find({
         where: { course_id: courseId },
-        select: ['title', 'description'],
-        order: { order_index: 'ASC' },
+        select: ['title'],
+        order: { index: 'ASC' },
       });
 
       const subtopics = await this.courseSubtopicRepository
         .createQueryBuilder('subtopic')
-        .leftJoin('subtopic.topic', 'topic')
-        .where('topic.course_id = :courseId', { courseId })
-        .select(['subtopic.title', 'subtopic.content'])
+        .leftJoin('subtopic.section', 'section')
+        .where('section.course_id = :courseId', { courseId })
+        .select(['subtopic.title'])
         .getMany();
 
       const content = [
-        ...topics.map(topic => `${topic.title}: ${topic.description}`),
-        ...subtopics.map(subtopic => `${subtopic.title}: ${subtopic.content}`),
+        ...sections.map(section => section.title),
+        ...subtopics.map(subtopic => subtopic.title),
       ].join('\n\n');
 
       return content;
@@ -741,20 +739,17 @@ Generate 5-8 slides that cover the key concepts clearly and concisely.`;
     
     try {
       // Find the first topic for this course to attach the quiz to
-      const topic = await this.courseTopicRepository.findOne({
+      const section = await this.courseSectionRepository.findOne({
         where: { course_id: courseId },
-        order: { order_index: 'ASC' },
+        order: { index: 'ASC' },
       });
 
-      if (topic) {
+      if (section) {
         const subtopic = this.courseSubtopicRepository.create({
-          topic_id: topic.id,
+          section_id: section.id,
           title: `Quiz: ${quiz.title || 'Course Quiz'}`,
-          content: quiz.description || 'Course assessment quiz',
-          type: 'quiz',
-          order_index: 999, // Place at end
-          quiz_data: quiz,
-          is_required: true,
+          index: 999, // Place at end
+          status: 'generated',
         });
 
         await this.courseSubtopicRepository.save(subtopic);
@@ -802,19 +797,17 @@ Make it educational and engaging.`;
     
     try {
       // Find the first topic for this course to attach the content to
-      const topic = await this.courseTopicRepository.findOne({
+      const section = await this.courseSectionRepository.findOne({
         where: { course_id: courseId },
-        order: { order_index: 'ASC' },
+        order: { index: 'ASC' },
       });
 
-      if (topic) {
+      if (section) {
         const subtopic = this.courseSubtopicRepository.create({
-          topic_id: topic.id,
+          section_id: section.id,
           title: 'AI Generated Content',
-          content: content,
-          type: 'text',
-          order_index: 1,
-          is_required: true,
+          index: 1,
+          status: 'generated',
         });
 
         await this.courseSubtopicRepository.save(subtopic);

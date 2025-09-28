@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CoursesController } from './courses.controller';
 import { CoursesService } from './services/courses.service';
-import { Course, CourseTopic, CourseSubtopic, CourseEnrollment, CourseReview, ReviewReply } from './entities';
+import { Course, CourseSection, CourseSubtopic, CourseEnrollment, CourseReview, ReviewReply } from './entities';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 /**
  * Courses module for managing course creation, topics, and enrollments
@@ -11,12 +12,13 @@ import { Course, CourseTopic, CourseSubtopic, CourseEnrollment, CourseReview, Re
   imports: [
     TypeOrmModule.forFeature([
       Course,
-      CourseTopic,
+      CourseSection,
       CourseSubtopic,
       CourseEnrollment,
       CourseReview,
       ReviewReply,
     ]),
+    forwardRef(() => WebSocketModule),
   ],
   controllers: [CoursesController],
   providers: [CoursesService],

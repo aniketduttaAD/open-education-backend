@@ -2,26 +2,39 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
-  Body,
   Param,
+  Body,
   Query,
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './services/admin.service';
-import { CreateSystemConfigDto, UpdateSystemConfigDto, BulkUserActionDto, BulkCourseActionDto } from './dto';
 import { JwtAuthGuard, RolesGuard } from '../../common/guards';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { JwtPayload } from '../../config/jwt.config';
 
+export class ApproveTutorDto {
+  tutorId: string;
+}
+
+export class RejectTutorDto {
+  tutorId: string;
+  reason: string;
+}
+
+export class PendingVerificationQuery {
+  page?: number = 1;
+  limit?: number = 10;
+}
+
 /**
- * Admin controller for platform administration and management
+ * Admin controller for managing tutor verification and system administration
  */
-@ApiTags('Admin Management')
+@ApiTags('Admin')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
@@ -29,258 +42,72 @@ import { JwtPayload } from '../../config/jwt.config';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Get('stats')
-  @ApiOperation({ summary: 'Get system statistics (admin only)' })
-  @ApiResponse({ status: 200, description: 'System statistics retrieved successfully' })
-  async getSystemStats() {
-    const stats = await this.adminService.getSystemStats();
-    return {
-      success: true,
-      data: stats,
-      message: 'System statistics retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('analytics/users')
-  @ApiOperation({ summary: 'Get user analytics (admin only)' })
-  @ApiResponse({ status: 200, description: 'User analytics retrieved successfully' })
-  async getUserAnalytics() {
-    const analytics = await this.adminService.getUserAnalytics();
-    return {
-      success: true,
-      data: analytics,
-      message: 'User analytics retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('analytics/courses')
-  @ApiOperation({ summary: 'Get course analytics (admin only)' })
-  @ApiResponse({ status: 200, description: 'Course analytics retrieved successfully' })
-  async getCourseAnalytics() {
-    const analytics = await this.adminService.getCourseAnalytics();
-    return {
-      success: true,
-      data: analytics,
-      message: 'Course analytics retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('configs')
-  @ApiOperation({ summary: 'Get system configurations (admin only)' })
-  @ApiResponse({ status: 200, description: 'System configurations retrieved successfully' })
-  @ApiQuery({ name: 'category', required: false, type: String, description: 'Filter by category' })
-  async getSystemConfigs(@Query('category') category?: string) {
-    const configs = await this.adminService.getSystemConfigs(category);
-    return {
-      success: true,
-      data: configs,
-      message: 'System configurations retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('configs/:key')
-  @ApiOperation({ summary: 'Get specific system configuration (admin only)' })
-  @ApiResponse({ status: 200, description: 'System configuration retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Configuration not found' })
-  async getSystemConfig(@Param('key') key: string) {
-    const config = await this.adminService.getSystemConfig(key);
-    return {
-      success: true,
-      data: config,
-      message: 'System configuration retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Post('configs')
-  @ApiOperation({ summary: 'Create system configuration (admin only)' })
-  @ApiResponse({ status: 201, description: 'System configuration created successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid configuration data' })
-  @HttpCode(HttpStatus.CREATED)
-  async createSystemConfig(
-    @CurrentUser() user: JwtPayload,
-    @Body() createDto: CreateSystemConfigDto,
+  @Post('tutors/:tutorId/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Approve tutor verification' })
+  @ApiResponse({ status: 200, description: 'Tutor approved successfully' })
+  @ApiResponse({ status: 404, description: 'Tutor not found' })
+  @ApiResponse({ status: 400, description: 'Tutor already verified or invalid status' })
+  async approveTutor(
+    @Param('tutorId') tutorId: string,
+    @CurrentUser() admin: JwtPayload,
   ) {
-    const config = await this.adminService.createSystemConfig(createDto, user.sub);
-    return {
-      success: true,
-      data: config,
-      message: 'System configuration created successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Put('configs/:id')
-  @ApiOperation({ summary: 'Update system configuration (admin only)' })
-  @ApiResponse({ status: 200, description: 'System configuration updated successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid update data' })
-  async updateSystemConfig(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') configId: string,
-    @Body() updateDto: UpdateSystemConfigDto,
-  ) {
-    const config = await this.adminService.updateSystemConfig(configId, updateDto, user.sub);
-    return {
-      success: true,
-      data: config,
-      message: 'System configuration updated successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Delete('configs/:id')
-  @ApiOperation({ summary: 'Delete system configuration (admin only)' })
-  @ApiResponse({ status: 200, description: 'System configuration deleted successfully' })
-  @ApiResponse({ status: 400, description: 'Cannot delete required configuration' })
-  async deleteSystemConfig(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') configId: string,
-  ) {
-    await this.adminService.deleteSystemConfig(configId, user.sub);
-    return {
-      success: true,
-      message: 'System configuration deleted successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Post('users/bulk-action')
-  @ApiOperation({ summary: 'Perform bulk user actions (admin only)' })
-  @ApiResponse({ status: 200, description: 'Bulk user action completed successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid bulk action data' })
-  async performBulkUserAction(
-    @CurrentUser() user: JwtPayload,
-    @Body() bulkActionDto: BulkUserActionDto,
-  ) {
-    const result = await this.adminService.performBulkUserAction(bulkActionDto, user.sub);
+    const result = await this.adminService.approveTutor(tutorId, admin.sub);
     return {
       success: true,
       data: result,
-      message: 'Bulk user action completed successfully',
+      message: 'Tutor approved successfully',
       timestamp: new Date().toISOString(),
     };
   }
 
-  @Post('courses/bulk-action')
-  @ApiOperation({ summary: 'Perform bulk course actions (admin only)' })
-  @ApiResponse({ status: 200, description: 'Bulk course action completed successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid bulk action data' })
-  async performBulkCourseAction(
-    @CurrentUser() user: JwtPayload,
-    @Body() bulkActionDto: BulkCourseActionDto,
+  @Post('tutors/:tutorId/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reject tutor verification' })
+  @ApiResponse({ status: 200, description: 'Tutor rejected successfully' })
+  @ApiResponse({ status: 404, description: 'Tutor not found' })
+  @ApiResponse({ status: 400, description: 'Tutor already processed or invalid status' })
+  async rejectTutor(
+    @Param('tutorId') tutorId: string,
+    @Body() rejectData: { reason: string },
+    @CurrentUser() admin: JwtPayload,
   ) {
-    const result = await this.adminService.performBulkCourseAction(bulkActionDto, user.sub);
+    const result = await this.adminService.rejectTutor(tutorId, rejectData.reason, admin.sub);
     return {
       success: true,
       data: result,
-      message: 'Bulk course action completed successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('activities')
-  @ApiOperation({ summary: 'Get admin activities (admin only)' })
-  @ApiResponse({ status: 200, description: 'Admin activities retrieved successfully' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
-  @ApiQuery({ name: 'adminId', required: false, type: String, description: 'Filter by admin ID' })
-  async getAdminActivities(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('adminId') adminId?: string,
-  ) {
-    const result = await this.adminService.getAdminActivities(page, limit, adminId);
-    return {
-      success: true,
-      data: result.activities,
-      pagination: {
-        page,
-        limit,
-        total: result.total,
-        pages: Math.ceil(result.total / limit),
-      },
-      message: 'Admin activities retrieved successfully',
+      message: 'Tutor rejected successfully',
       timestamp: new Date().toISOString(),
     };
   }
 
   @Get('tutors/pending-verification')
-  @ApiOperation({ summary: 'Get tutors pending verification (admin only)' })
-  @ApiResponse({ status: 200, description: 'Pending tutors retrieved successfully' })
+  @ApiOperation({ summary: 'Get tutors pending verification' })
+  @ApiResponse({ status: 200, description: 'Pending verifications retrieved successfully' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
-  async getPendingTutors(
-    @CurrentUser() user: JwtPayload,
+  async getPendingVerifications(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
   ) {
-    const result = await this.adminService.getPendingTutors(page, limit);
-    return {
-      success: true,
-      data: result.tutors,
-      pagination: {
-        page,
-        limit,
-        total: result.total,
-        pages: Math.ceil(result.total / limit),
-      },
-      message: 'Pending tutors retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Put('tutors/:tutorId/verify')
-  @ApiOperation({ summary: 'Verify or reject tutor (admin only)' })
-  @ApiResponse({ status: 200, description: 'Tutor verification updated successfully' })
-  @ApiResponse({ status: 404, description: 'Tutor not found' })
-  async verifyTutor(
-    @CurrentUser() user: JwtPayload,
-    @Param('tutorId') tutorId: string,
-    @Body() verificationData: { status: 'verified' | 'rejected'; reason?: string },
-  ) {
-    const result = await this.adminService.verifyTutor(tutorId, verificationData, user.sub);
+    const result = await this.adminService.getPendingVerifications(page, limit);
     return {
       success: true,
       data: result,
-      message: `Tutor ${verificationData.status} successfully`,
+      message: 'Pending verifications retrieved successfully',
       timestamp: new Date().toISOString(),
     };
   }
 
-  @Get('tutors/:tutorId/documents')
-  @ApiOperation({ summary: 'Get tutor verification documents (admin only)' })
-  @ApiResponse({ status: 200, description: 'Tutor documents retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Tutor not found' })
-  async getTutorDocuments(
-    @CurrentUser() user: JwtPayload,
-    @Param('tutorId') tutorId: string,
-  ) {
-    const documents = await this.adminService.getTutorDocuments(tutorId);
+  @Get('tutors/verification-stats')
+  @ApiOperation({ summary: 'Get tutor verification statistics' })
+  @ApiResponse({ status: 200, description: 'Verification statistics retrieved successfully' })
+  async getVerificationStats() {
+    const stats = await this.adminService.getVerificationStats();
     return {
       success: true,
-      data: documents,
-      message: 'Tutor documents retrieved successfully',
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  @Get('tutors/:tutorId/documents/:documentId/url')
-  @ApiOperation({ summary: 'Get download URL for a tutor verification document (admin only)' })
-  @ApiResponse({ status: 200, description: 'URL generated successfully' })
-  async getTutorDocumentUrl(
-    @Param('tutorId') tutorId: string,
-    @Param('documentId') documentId: string,
-  ) {
-    // Reuse storage controller/service route: expose a generic URL if needed later via adminService
-    const url = await this.adminService.getTutorDocumentUrl(tutorId, documentId);
-    return {
-      success: true,
-      data: { url },
-      message: 'Tutor document URL generated successfully',
+      data: stats,
+      message: 'Verification statistics retrieved successfully',
       timestamp: new Date().toISOString(),
     };
   }
