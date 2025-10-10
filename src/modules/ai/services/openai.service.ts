@@ -81,7 +81,7 @@ export class OpenAIService {
       });
 
       const response = await this.openai.chat.completions.create({
-        model: options.model || 'gpt-4-turbo-preview', // Hardcoded
+        model: options.model || 'gpt-4-turbo-preview', 
         messages,
         max_tokens: options.maxTokens || 2000,
         temperature: options.temperature || 0.7,
@@ -259,7 +259,7 @@ export class OpenAIService {
 
     try {
       const response = await this.openai.embeddings.create({
-        model: 'text-embedding-3-small', // Hardcoded
+        model: 'text-embedding-3-small', 
         input: text,
       });
 
@@ -365,7 +365,7 @@ export class OpenAIService {
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview', // Hardcoded
+        model: 'gpt-4-turbo-preview', 
         messages,
         max_tokens: 1000,
         temperature: 0.7,

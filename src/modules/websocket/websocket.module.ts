@@ -15,7 +15,7 @@ import { CoursesModule } from '../courses/courses.module';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: '7d', // Hardcoded for production
+          expiresIn: '7d', 
         },
       }),
       inject: [ConfigService],

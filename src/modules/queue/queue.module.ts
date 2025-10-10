@@ -7,7 +7,6 @@ import { QueueService } from './services/queue.service';
 import { VideoGenerationProcessor } from './processors/video-generation.processor';
 import { AIContentProcessor } from './processors/ai-content.processor';
 import { TutorVerificationProcessor } from './processors/tutor-verification.processor';
-import { ContentGenerationProcessor } from './processors/content-generation.processor';
 import { EnhancedContentGenerationProcessor } from './processors/enhanced-content-generation.processor';
 import { User } from '../auth/entities/user.entity';
 import { TutorDocument } from '../users/entities/tutor-document.entity';
@@ -51,7 +50,6 @@ import { WebSocketModule } from '../websocket/websocket.module';
     VideoGenerationProcessor,
     AIContentProcessor,
     TutorVerificationProcessor,
-    ContentGenerationProcessor,
     EnhancedContentGenerationProcessor,
   ],
   exports: [QueueService, CacheModule],

@@ -9,8 +9,21 @@ export class RedisWrapper {
 
   static async getClient(options: RedisWrapperOptions): Promise<RedisClientType<any, any, any>> {
     if (this.client) return this.client;
-    const client = createClient({ url: options.url });
+    const client = createClient({ 
+      url: options.url,
+      socket: {
+        reconnectStrategy: (retries) => {
+          if (retries > 10) {
+            console.error('Redis connection failed after 10 retries');
+            return false;
+          }
+          return Math.min(retries * 100, 3000);
+        }
+      }
+    });
     client.on('error', (err) => console.error('Redis Client Error', err));
+    client.on('connect', () => console.log('Redis connected successfully'));
+    client.on('reconnecting', () => console.log('Redis reconnecting...'));
     await client.connect();
     this.client = client;
     return client;
@@ -31,6 +44,17 @@ export class RedisWrapper {
     } catch {
       return null as any;
     }
+  }
+
+  static async disconnect(): Promise<void> {
+    if (this.client) {
+      await this.client.disconnect();
+      this.client = null;
+    }
+  }
+
+  static isConnected(): boolean {
+    return this.client?.isReady || false;
   }
 }
 

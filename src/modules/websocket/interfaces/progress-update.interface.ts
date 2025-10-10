@@ -4,6 +4,7 @@ export interface ProgressUpdate {
   estimatedTimeRemaining: number; // in minutes
   currentSection?: string;
   currentSubtopic?: string;
+  finalPayload?: any; // Final completion payload with all generated content
   errors?: Array<{
     step: string;
     error: string;

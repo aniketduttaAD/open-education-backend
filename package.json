@@ -9,11 +9,10 @@
     "start:prod": "node dist/main.js",
     "build": "tsc --skipLibCheck --noEmitOnError false",
     "docker:rebuild": "docker compose up -d --build --force-recreate api",
-    "docker:restart": "docker compose restart api",
-    "docker:rebuild:full": "docker compose up -d --build --force-recreate api",
-    "docker:logs": "docker compose logs -f api",
-    "docker:build-image": "docker build -t ${DOCKER_IMAGE:-openedu/backend:latest} .",
-    "docker:push": "docker push ${DOCKER_IMAGE:-openedu/backend:latest}"
+    "clean:api": "docker compose down api && docker volume rm openedu_backend_pgdata openedu_backend_minio-data || true",
+    "clean:all": "docker compose down -v && docker system prune -f && docker volume prune -f",
+    "setup:db": "docker compose down -v && docker volume rm openedu_backend_pgdata openedu_backend_minio-data || true && docker compose up -d db minio minio-setup redis && sleep 10 && docker compose up -d api",
+    "reset:db": "docker exec -i openedu-postgres psql -U openedu -d openedu_db -c \"DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO openedu; GRANT ALL ON SCHEMA public TO public;\" && docker exec -i openedu-postgres psql -U openedu -d openedu_db < database/init/complete-schema.sql"
   },
   "keywords": [],
   "author": "",

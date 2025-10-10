@@ -8,8 +8,8 @@ import { PostgresTransport } from './postgres-transport';
  * Uses PostgreSQL for log storage in production
  */
 export const getWinstonConfig = (postgresTransport?: PostgresTransport): WinstonModuleOptions => {
-  const logLevel = 'info'; // Hardcoded
-  const nodeEnv = 'production'; // Hardcoded
+  const logLevel = 'info'; 
+  const nodeEnv = 'production'; 
 
   const logFormat = winston.format.combine(
     winston.format.timestamp({

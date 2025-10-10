@@ -18,7 +18,6 @@ import { ApplicationLog } from './common/entities/application-log.entity';
 import { PostgresTransport } from './config/postgres-transport';
 import { RoadmapsModule } from './modules/roadmaps/roadmaps.module';
 import { AssessmentsModule } from './modules/assessments/assessments.module';
-import { AIBuddyModule } from './modules/aibuddy/aibuddy.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { WebSocketModule } from './modules/websocket/websocket.module';
@@ -48,7 +47,6 @@ import { AdminModule } from './modules/admin/admin.module';
     HealthModule,
     RoadmapsModule,
     AssessmentsModule,
-    AIBuddyModule,
     CoursesModule,
     StorageModule,
     WebSocketModule,

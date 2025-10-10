@@ -9,7 +9,7 @@ export interface ResendConfig {
 
 export const getResendConfig = (configService: ConfigService): ResendConfig => {
   const apiKey = configService.get<string>("RESEND_API_KEY");
-  const fromEmail = "OpenEducation <onboarding@resend.dev>"; // Hardcoded
+  const fromEmail = "OpenEducation <onboarding@resend.dev>"; 
 
   if (!apiKey) {
     throw new Error("RESEND_API_KEY is required for email notifications");
@@ -24,7 +24,7 @@ export const getResendConfig = (configService: ConfigService): ResendConfig => {
     apiKey,
     fromEmail: email,
     fromName,
-    replyTo: "helloaniketdutta@gmail.com", // Hardcoded support email
+    replyTo: "helloaniketdutta@gmail.com",  
   };
 };
 
@@ -35,8 +35,8 @@ export interface EmailTemplateConfig {
 }
 
 export const getEmailTemplateConfig = (configService: ConfigService): EmailTemplateConfig => ({
-  baseUrl: "https://openeducation.vercel.app", // Hardcoded
-  supportEmail: "helloaniketdutta@gmail.com", // Hardcoded support email
+  baseUrl: "https://openeducation.vercel.app", 
+  supportEmail: "helloaniketdutta@gmail.com",  
   unsubscribeUrl: "/notifications/preferences",
 });
 

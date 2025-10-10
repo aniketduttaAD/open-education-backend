@@ -58,7 +58,7 @@ CREATE TABLE users (
     tutor_details JSONB,
     student_details JSONB,
     onboarding_complete BOOLEAN DEFAULT NULL,
-    document_verification document_verification_type DEFAULT 'pending',
+    document_verification document_verification_type DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

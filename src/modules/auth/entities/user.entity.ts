@@ -89,7 +89,6 @@ export class User {
   @Column({
     type: 'enum',
     enum: ['pending', 'verified', 'rejected'],
-    default: 'pending',
     nullable: true,
   })
   document_verification?: DocumentVerificationType;

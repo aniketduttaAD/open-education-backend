@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CopyConditions } from 'minio';
 import * as Minio from 'minio';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
@@ -107,6 +108,50 @@ export class MinioService {
     } catch (error) {
       this.logger.error(`Failed to get file stream:`, error);
       throw new BadRequestException('Failed to retrieve file');
+    }
+  }
+
+  /**
+   * Copy object within MinIO (same or different bucket)
+   */
+  async copyObject(
+    sourceBucket: string,
+    sourceObject: string,
+    destinationBucket: string,
+    destinationObject: string,
+  ): Promise<void> {
+    try {
+      const sourcePath = `/${sourceBucket}/${sourceObject}`;
+      const conditions = new CopyConditions();
+      await this.minioClient.copyObject(
+        destinationBucket,
+        destinationObject,
+        sourcePath,
+        conditions,
+      );
+      this.logger.log(`Copied ${sourceBucket}/${sourceObject} -> ${destinationBucket}/${destinationObject}`);
+    } catch (error) {
+      this.logger.error(`Failed to copy object:`, error);
+      throw new BadRequestException('Failed to copy object');
+    }
+  }
+
+  /**
+   * Move object within MinIO (copy then remove source)
+   */
+  async moveObject(
+    sourceBucket: string,
+    sourceObject: string,
+    destinationBucket: string,
+    destinationObject: string,
+  ): Promise<void> {
+    await this.copyObject(sourceBucket, sourceObject, destinationBucket, destinationObject);
+    try {
+      await this.minioClient.removeObject(sourceBucket, sourceObject);
+      this.logger.log(`Removed source ${sourceBucket}/${sourceObject} after move`);
+    } catch (error) {
+      // Non-fatal: destination already copied
+      this.logger.warn(`Failed to remove source after copy: ${sourceBucket}/${sourceObject}`);
     }
   }
 

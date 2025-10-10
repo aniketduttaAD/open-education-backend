@@ -24,7 +24,7 @@ export const getRazorpayConfig = (configService: ConfigService): RazorpayConfig 
     keyId,
     keySecret,
     webhookSecret,
-    currency: 'INR', // Hardcoded
+    currency: 'INR', 
   };
 };
 
@@ -37,11 +37,11 @@ export interface PaymentConfig {
 }
 
 export const getPaymentConfig = (configService: ConfigService): PaymentConfig => ({
-  tutorCommissionPercentage: 80, // Hardcoded
-  onboardingFee: 1000, // Hardcoded
-  minCoursePrice: 500, // Hardcoded
-  maxCoursePrice: 1000, // Hardcoded
-  maxRevisions: 5, // Hardcoded
+  tutorCommissionPercentage: 80, 
+  onboardingFee: 1000, 
+  minCoursePrice: 500, 
+  maxCoursePrice: 1000, 
+  maxRevisions: 5, 
 });
 
 export default getRazorpayConfig;

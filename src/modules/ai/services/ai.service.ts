@@ -536,7 +536,7 @@ Generate 5-8 slides that cover the key concepts clearly and concisely.`;
     
     try {
       // Use the video generation service's Marp CLI functionality
-      const tempDir = path.join(process.cwd(), 'temp', 'slide-conversion');
+      const tempDir = path.join(process.cwd(), 'generated', 'slide-conversion');
       await fs.ensureDir(tempDir);
       
       // Generate slides using Marp CLI

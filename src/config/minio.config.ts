@@ -19,8 +19,8 @@ export const getMinioConfig = (configService: ConfigService): MinioConfig => {
 
   return {
     endPoint: 'minio', // Docker service name
-    port: 9000, // Hardcoded
-    useSSL: false, // Hardcoded
+    port: 9000, 
+    useSSL: false, 
     accessKey,
     secretKey,
   };

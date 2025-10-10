@@ -1,16 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import { Quiz } from '../entities/quiz.entity';
-import { QuizQuestion } from '../entities/quiz-question.entity';
-import { Flashcard } from '../entities/flashcard.entity';
-import { Course } from '../../courses/entities/course.entity';
-import { CourseSection } from '../../courses/entities/course-section.entity';
-import { EmbeddingsService } from './embeddings.service';
-import { GenerateAssessmentsDto } from '../dto/generate-assessments.dto';
-import getOpenAIConfig from '../../../config/openai.config';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ConfigService } from "@nestjs/config";
+import OpenAI from "openai";
+import { Quiz } from "../entities/quiz.entity";
+import { QuizQuestion } from "../entities/quiz-question.entity";
+import { Flashcard } from "../entities/flashcard.entity";
+import { Course } from "../../courses/entities/course.entity";
+import { CourseSection } from "../../courses/entities/course-section.entity";
+import { EmbeddingsService } from "../../ai/services/embeddings.service";
+import { GenerateAssessmentsDto } from "../dto/generate-assessments.dto";
+import getOpenAIConfig from "../../../config/openai.config";
 
 @Injectable()
 export class AssessmentsService {
@@ -29,7 +29,7 @@ export class AssessmentsService {
     @InjectRepository(CourseSection)
     private sectionRepository: Repository<CourseSection>,
     private embeddingsService: EmbeddingsService,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {
     const ai = getOpenAIConfig(this.configService);
     this.openai = new OpenAI({ apiKey: ai.apiKey });
@@ -44,18 +44,20 @@ export class AssessmentsService {
   }> {
     this.logger.log(`Generating assessments for course ${dto.id}`);
 
-    const course = await this.courseRepository.findOne({ where: { id: dto.id } });
+    const course = await this.courseRepository.findOne({
+      where: { id: dto.id },
+    });
     if (!course) {
       throw new Error(`Course ${dto.id} not found`);
     }
 
     // Ensure embeddings are computed
-    await this.embeddingsService.computeAndStoreEmbeddings(dto.id);
+    await this.embeddingsService.generateCourseEmbeddings(dto.id, []);
 
     // Get all sections for this course
     const sections = await this.sectionRepository.find({
       where: { course_id: dto.id },
-      order: { index: 'ASC' },
+      order: { index: "ASC" },
     });
 
     const quizIds: string[] = [];
@@ -64,20 +66,25 @@ export class AssessmentsService {
     // Generate assessments for each section
     for (const section of sections) {
       if (dto.perSection?.quizCount && dto.perSection.quizCount > 0) {
-        const quizId = await this.generateQuizForSection(section, dto.perSection.quizCount);
+        const quizId = await this.generateQuizForSection(
+          section,
+          dto.perSection.quizCount
+        );
         quizIds.push(quizId);
       }
 
       if (dto.perSection?.flashcardCount && dto.perSection.flashcardCount > 0) {
         const flashcardIdsForSection = await this.generateFlashcardsForSection(
           section,
-          dto.perSection.flashcardCount,
+          dto.perSection.flashcardCount
         );
         flashcardIds.push(...flashcardIdsForSection);
       }
     }
 
-    this.logger.log(`Generated ${quizIds.length} quizzes and ${flashcardIds.length} flashcards`);
+    this.logger.log(
+      `Generated ${quizIds.length} quizzes and ${flashcardIds.length} flashcards`
+    );
 
     return { quizIds, flashcardIds };
   }
@@ -85,8 +92,13 @@ export class AssessmentsService {
   /**
    * Generate quiz for a specific section
    */
-  private async generateQuizForSection(section: CourseSection, questionCount: number): Promise<string> {
-    this.logger.log(`Generating quiz for section ${section.id} with ${questionCount} questions`);
+  private async generateQuizForSection(
+    section: CourseSection,
+    questionCount: number
+  ): Promise<string> {
+    this.logger.log(
+      `Generating quiz for section ${section.id} with ${questionCount} questions`
+    );
 
     // Get section content for context
     const context = await this.getSectionContext(section);
@@ -113,7 +125,9 @@ export class AssessmentsService {
       });
     }
 
-    this.logger.log(`Created quiz ${quiz.id} with ${questions.length} questions`);
+    this.logger.log(
+      `Created quiz ${quiz.id} with ${questions.length} questions`
+    );
     return quiz.id;
   }
 
@@ -122,9 +136,11 @@ export class AssessmentsService {
    */
   private async generateFlashcardsForSection(
     section: CourseSection,
-    cardCount: number,
+    cardCount: number
   ): Promise<string[]> {
-    this.logger.log(`Generating ${cardCount} flashcards for section ${section.id}`);
+    this.logger.log(
+      `Generating ${cardCount} flashcards for section ${section.id}`
+    );
 
     // Get section content for context
     const context = await this.getSectionContext(section);
@@ -147,7 +163,9 @@ export class AssessmentsService {
       flashcardIds.push(flashcard.id);
     }
 
-    this.logger.log(`Created ${flashcardIds.length} flashcards for section ${section.id}`);
+    this.logger.log(
+      `Created ${flashcardIds.length} flashcards for section ${section.id}`
+    );
     return flashcardIds;
   }
 
@@ -157,16 +175,16 @@ export class AssessmentsService {
   private async getSectionContext(section: CourseSection): Promise<string> {
     try {
       // Use embeddings service to get section content
-      const embeddings = await this.embeddingsService.searchEmbeddings(
-        [], // We'll get all embeddings for this section
+      const embeddings = await this.embeddingsService.searchSimilarContent(
+        section.title, // Use section title as query
         section.course_id,
         0.0, // Low threshold to get all content
-        100, // High limit
+        100 // High limit
       );
 
       // Filter for section-level embeddings
       const sectionEmbeddings = embeddings.filter(
-        (e) => e.content_id === section.id && e.content_type === 'section',
+        (e) => e.section_id === section.id && e.kind === "section"
       );
 
       if (sectionEmbeddings.length === 0) {
@@ -177,7 +195,9 @@ export class AssessmentsService {
       // In a full implementation, you'd retrieve the actual content using the content_hash
       return `Section: ${section.title}\n\nThis section covers the fundamentals and key concepts.`;
     } catch (error) {
-      this.logger.warn(`Failed to get context for section ${section.id}: ${error.message}`);
+      this.logger.warn(
+        `Failed to get context for section ${section.id}: ${error.message}`
+      );
       return `Section: ${section.title}\n\nContent not yet generated.`;
     }
   }
@@ -185,40 +205,50 @@ export class AssessmentsService {
   /**
    * Generate quiz questions using OpenAI
    */
-  private async generateQuizQuestions(context: string, count: number): Promise<{
-    question: string;
-    options: string[];
-    correct_index: number;
-    rationale: string;
-  }[]> {
+  private async generateQuizQuestions(
+    context: string,
+    count: number
+  ): Promise<
+    {
+      question: string;
+      options: string[];
+      correct_index: number;
+      rationale: string;
+    }[]
+  > {
     const prompt = [
-      'You are generating rigorous but approachable MCQs.',
-      'Context (do not invent beyond this):',
+      "You are generating rigorous but approachable MCQs.",
+      "Context (do not invent beyond this):",
       context,
-      '',
+      "",
       `Generate exactly ${count} multiple choice questions.`,
-      'Return JSON ONLY:',
-      '{',
+      "Return JSON ONLY:",
+      "{",
       '  "questions": [',
       '    {"question": "...", "options": ["A","B","C","D"], "correct_index": 2, "rationale": "..."}',
-      '  ]',
-      '}',
-    ].join('\n');
+      "  ]",
+      "}",
+    ].join("\n");
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: this.configService.get<string>('OPENAI_CHAT_MODEL') || 'gpt-4o-mini',
+        model:
+          this.configService.get<string>("OPENAI_CHAT_MODEL") || "gpt-4o-mini",
         messages: [
-          { role: 'system', content: 'You are an expert educator creating assessment questions.' },
-          { role: 'user', content: prompt },
+          {
+            role: "system",
+            content:
+              "You are an expert educator creating assessment questions.",
+          },
+          { role: "user", content: prompt },
         ],
         temperature: 0.3,
-        response_format: { type: 'json_object' },
+        response_format: { type: "json_object" },
       });
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
-        throw new Error('No response from OpenAI');
+        throw new Error("No response from OpenAI");
       }
 
       const parsed = JSON.parse(content);
@@ -228,10 +258,10 @@ export class AssessmentsService {
       // Return fallback questions
       return [
         {
-          question: 'What is the main topic of this section?',
-          options: ['Option A', 'Option B', 'Option C', 'Option D'],
+          question: "What is the main topic of this section?",
+          options: ["Option A", "Option B", "Option C", "Option D"],
           correct_index: 0,
-          rationale: 'This is a fallback question.',
+          rationale: "This is a fallback question.",
         },
       ];
     }
@@ -240,38 +270,47 @@ export class AssessmentsService {
   /**
    * Generate flashcard content using OpenAI
    */
-  private async generateFlashcardContent(context: string, count: number): Promise<{
-    front: string;
-    back: string;
-  }[]> {
+  private async generateFlashcardContent(
+    context: string,
+    count: number
+  ): Promise<
+    {
+      front: string;
+      back: string;
+    }[]
+  > {
     const prompt = [
-      'You are generating concise flashcards (front/back) from the context. No extra fluff.',
-      'Context:',
+      "You are generating concise flashcards (front/back) from the context. No extra fluff.",
+      "Context:",
       context,
-      '',
+      "",
       `Generate exactly ${count} flashcards.`,
-      'Return JSON ONLY:',
-      '{',
+      "Return JSON ONLY:",
+      "{",
       '  "cards": [',
       '    {"front": "...", "back": "..."}',
-      '  ]',
-      '}',
-    ].join('\n');
+      "  ]",
+      "}",
+    ].join("\n");
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: this.configService.get<string>('OPENAI_CHAT_MODEL') || 'gpt-4o-mini',
+        model:
+          this.configService.get<string>("OPENAI_CHAT_MODEL") || "gpt-4o-mini",
         messages: [
-          { role: 'system', content: 'You are an expert educator creating flashcards.' },
-          { role: 'user', content: prompt },
+          {
+            role: "system",
+            content: "You are an expert educator creating flashcards.",
+          },
+          { role: "user", content: prompt },
         ],
         temperature: 0.3,
-        response_format: { type: 'json_object' },
+        response_format: { type: "json_object" },
       });
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
-        throw new Error('No response from OpenAI');
+        throw new Error("No response from OpenAI");
       }
 
       const parsed = JSON.parse(content);
@@ -281,8 +320,8 @@ export class AssessmentsService {
       // Return fallback flashcards
       return [
         {
-          front: 'What is the main concept?',
-          back: 'This is the main concept explanation.',
+          front: "What is the main concept?",
+          back: "This is the main concept explanation.",
         },
       ];
     }
@@ -310,13 +349,13 @@ export class AssessmentsService {
   }> {
     const quizzes = await this.quizRepository.find({
       where: { course_id: courseId },
-      relations: ['questions'],
-      order: { created_at: 'ASC' },
+      relations: ["questions"],
+      order: { created_at: "ASC" },
     });
 
     const flashcards = await this.flashcardRepository.find({
       where: { course_id: courseId },
-      order: { section_id: 'ASC', index: 'ASC' },
+      order: { section_id: "ASC", index: "ASC" },
     });
 
     return {

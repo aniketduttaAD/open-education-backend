@@ -12,8 +12,8 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
       url: databaseUrl,
       entities: [__dirname + '/../**/*.entity{.ts,.js}'],
       migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-      synchronize: false, // Hardcoded for production
-      logging: false, // Hardcoded for production
+      synchronize: false, 
+      logging: false, 
       ssl: false,
       extra: {
         ssl: false,
@@ -31,8 +31,8 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
     database: 'openedu_db',
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-    synchronize: false, // Hardcoded for production
-    logging: false, // Hardcoded for production
+    synchronize: false, 
+    logging: false, 
     ssl: false,
     extra: {
       ssl: false,

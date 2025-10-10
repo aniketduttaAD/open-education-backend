@@ -369,7 +369,7 @@ export class RoadmapsService {
   async finalize(dto: FinalizeRoadmapDto, courseId?: string, tutorId?: string) {
     if (!dto?.id) throw new Error('id is required');
 
-    // Validate course ownership if courseId provided
+    // Validate course ownership if courseId provided (optional in new flow)
     if (courseId && tutorId) {
       await this.validateCourseOwnership(courseId, tutorId);
     }
@@ -383,100 +383,66 @@ export class RoadmapsService {
     const totalSections = Object.keys(existing.data).length;
 
     try {
-      // 1. Create database entries for roadmap, sections, and subtopics
-      const roadmap = await this.roadmapRepository.save({
-        course_id: courseId!,
-        tutor_user_id: tutorId!,
-        roadmap_data: existing.data,
-        status: 'finalizing',
-        redis_key: key,
-        finalized_at: new Date(),
-      });
+      const sessionId = uuidv4();
 
-      // 2. Create course sections and subtopics
-      const sectionEntries = [];
-      let sectionIndex = 0;
+      // If courseId is provided, create DB records; otherwise, session-first only
+      let roadmapId: string | null = null;
+      let progressId: string | null = null;
 
-      for (const [sectionTitle, subtopics] of Object.entries(existing.data)) {
-        if (!Array.isArray(subtopics)) continue;
-
-        // Create section
-        const section = await this.sectionRepository.save({
-          course_id: courseId!,
-          index: sectionIndex,
-          title: sectionTitle,
+      if (courseId) {
+        const roadmap = await this.roadmapRepository.save({
+          course_id: courseId,
+          tutor_user_id: tutorId!,
+          roadmap_data: existing.data,
+          status: 'finalizing',
+          redis_key: key,
+          finalized_at: new Date(),
         });
+        roadmapId = roadmap.id;
 
-        sectionEntries.push(section);
-
-        // Create subtopics for this section
-        for (let subtopicIndex = 0; subtopicIndex < subtopics.length; subtopicIndex++) {
-          await this.subtopicRepository.save({
-            section_id: section.id,
-            index: subtopicIndex,
-            title: String(subtopics[subtopicIndex]),
-            status: 'pending',
-          });
-        }
-
-        sectionIndex++;
+        const progress = await this.progressRepository.save({
+          course_id: courseId,
+          roadmap_id: roadmap.id,
+          status: 'processing',
+          current_step: 'initializing',
+          progress_percentage: 0,
+          current_section_index: 0,
+          current_subtopic_index: 0,
+          total_sections: totalSections,
+          total_subtopics: totalSubtopics,
+          estimated_time_remaining: Math.ceil(Number(totalSubtopics) * 8),
+          websocket_session_id: sessionId,
+          started_at: new Date(),
+        } as any);
+        progressId = (progress as any).id;
       }
 
-      // 3. Initialize course_generation_progress
-      const sessionId = uuidv4();
-      const progress = await this.progressRepository.save({
-        course_id: courseId!,
-        roadmap_id: roadmap.id,
-        status: 'processing',
-        current_step: 'initializing',
-        progress_percentage: 0,
-        current_section_index: 0,
-        current_subtopic_index: 0,
-        total_sections: totalSections,
-        total_subtopics: totalSubtopics,
-        estimated_time_remaining: Math.ceil(Number(totalSubtopics) * 8), // 8 minutes per subtopic estimate
-        websocket_session_id: sessionId,
-        started_at: new Date(),
-      } as any);
-
-      // 4. Clear old Redis versions (keep 2-day cleanup)
+      // Cleanup old Redis temp entries
       await this.cleanupOldRoadmaps();
 
-      // 5. Start WebSocket session (if needed for content generation)
-      // Note: WebSocket session ID is stored in progress for content generation pipeline
-
-      // 6. Trigger content generation pipeline
+      // Enqueue job
       const queue = new Queue('content-generation', { connection: { url: this.redisUrl } as any });
-
-      // Enqueue content generation job
       await queue.add('generate-course-content', {
-        courseId,
-        roadmapId: roadmap.id,
-        progressId: (progress as any).id,
+        courseId: courseId || null,
+        roadmapId,
+        progressId,
         roadmapData: existing.data,
         sessionId,
+        tutorId,
       }, {
         removeOnComplete: 5,
         removeOnFail: 10,
         attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
-        }
+        backoff: { type: 'exponential', delay: 2000 }
       });
-
-      // Update roadmap status to finalized
-      await this.roadmapRepository.update(roadmap.id, { status: 'finalized' });
-
-      this.logger.log(`Roadmap ${dto.id} finalized for course ${courseId} with ${totalSubtopics} subtopics`);
 
       return {
         id: dto.id,
-        roadmapId: roadmap.id,
-        progressId: (progress as any).id,
+        roadmapId,
+        progressId,
         sessionId,
         totalSections,
-        totalSubtopics
+        totalSubtopics,
       };
     } catch (error) {
       this.logger.error(`Failed to finalize roadmap ${dto.id}:`, error);

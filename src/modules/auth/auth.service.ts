@@ -159,7 +159,7 @@ export class AuthService {
 
       const newAccessToken = await this.jwtService.signAsync(accessTokenPayload, {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: '7d', // Hardcoded for production
+        expiresIn: '7d',  
       });
 
       // Generate new refresh token

@@ -18,11 +18,11 @@ export const getOpenAIConfig = (configService: ConfigService): OpenAIConfig => {
 
   return {
     apiKey,
-    embeddingModel: "text-embedding-3-small", // Hardcoded
-    chatModel: "gpt-4-turbo-preview", // Hardcoded
-    ttsModel: "tts-1", // Hardcoded
-    maxTokens: 4000, // Hardcoded
-    temperature: 0.7, // Hardcoded
+    embeddingModel: "text-embedding-3-small", 
+    chatModel: "gpt-4-turbo-preview", 
+    ttsModel: "tts-1", 
+    maxTokens: 4000, 
+    temperature: 0.7, 
   };
 };
 
@@ -35,9 +35,9 @@ export interface AIBuddyConfig {
 }
 
 export const getAIBuddyConfig = (configService: ConfigService): AIBuddyConfig => ({
-  tokensPerMonth: 1000, // Hardcoded
-  contextWindow: 10, // Hardcoded
-  responseStyle: "friendly_tutor", // Hardcoded
+  tokensPerMonth: 1000, 
+  contextWindow: 10, 
+  responseStyle: "friendly_tutor", 
 });
 
 export default getOpenAIConfig;

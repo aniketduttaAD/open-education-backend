@@ -7,12 +7,14 @@ services:
     working_dir: /app
     environment:
       - NODE_ENV=${NODE_ENV:-production}
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+      - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process
       # MinIO endpoints for internal/external access
       - MINIO_ENDPOINT_INTERNAL=minio
       - MINIO_ENDPOINT_EXTERNAL=localhost:9000
       - MINIO_PORT=9000
       - MINIO_USE_SSL=false
-      - REDIS_URL=redis://:openedu_redis_dev@redis:6379/0
+      - REDIS_URL=redis://:openedu_redis_dev@redis:6379
     env_file:
       - .env
     ports:
@@ -38,10 +40,11 @@ services:
       sh -c "
         apk add --no-cache bash python3 make g++ cairo-dev jpeg-dev pango-dev musl-dev giflib-dev pixman-dev pangomm-dev libjpeg-turbo-dev freetype-dev ffmpeg curl chromium &&
         npm install &&
+        npm i -g @marp-team/marp-cli &&
         npm run build &&
         npm prune --production &&
         echo 'FFmpeg version:' && ffmpeg -version | head -1 &&
-        echo 'Marp CLI version:' && npx @marp-team/marp-cli --version &&
+        echo 'Marp CLI version:' && marp --version &&
         npm run start:prod
       "
 
@@ -137,6 +140,21 @@ services:
     volumes:
       - redis-data:/data
     restart: unless-stopped
+    networks:
+      - openedu-network
+
+  # Pgweb - Web UI for PostgreSQL
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: openedu-pgweb
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://openedu:Qt5ff3c6RDkGBTpuALBap1juR7uXjJlSG0cmSn54FZI=@db:5432/openedu_db?sslmode=disable
+    ports:
+      - "8082:8081"
     networks:
       - openedu-network
 

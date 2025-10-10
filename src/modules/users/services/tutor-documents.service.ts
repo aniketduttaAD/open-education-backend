@@ -81,6 +81,12 @@ export class TutorDocumentsService {
       action: 'documents_uploaded',
     });
 
+    // Mark user's document_verification as pending on first document upload
+    if (!user.document_verification || user.document_verification !== 'pending') {
+      user.document_verification = 'pending';
+      await this.userRepository.save(user);
+    }
+
     // Upsert tutor_document_sets for this user
     const nowIso = new Date().toISOString();
     const entry = {
