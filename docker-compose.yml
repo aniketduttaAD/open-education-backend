@@ -1,52 +1,53 @@
 services:
-  # Main Backend Application
-  api:
-    image: node:20-alpine
-    container_name: openedu-api
-    restart: unless-stopped
-    working_dir: /app
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-      - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process
-      # MinIO endpoints for internal/external access
-      - MINIO_ENDPOINT_INTERNAL=minio
-      - MINIO_ENDPOINT_EXTERNAL=localhost:9000
-      - MINIO_PORT=9000
-      - MINIO_USE_SSL=false
-      - REDIS_URL=redis://:openedu_redis_dev@redis:6379
-    env_file:
-      - .env
-    ports:
-      - "8081:8081"
-    depends_on:
-      db:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - .:/app
-    networks:
-      - openedu-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    command: >
-      sh -c "
-        apk add --no-cache bash python3 make g++ cairo-dev jpeg-dev pango-dev musl-dev giflib-dev pixman-dev pangomm-dev libjpeg-turbo-dev freetype-dev ffmpeg curl chromium &&
-        npm install &&
-        npm i -g @marp-team/marp-cli &&
-        npm run build &&
-        npm prune --production &&
-        echo 'FFmpeg version:' && ffmpeg -version | head -1 &&
-        echo 'Marp CLI version:' && marp --version &&
-        npm run start:prod
-      "
+  # Main Backend Application - COMMENTED OUT FOR LOCAL DEVELOPMENT
+  # Uncomment this section if you want to run the API in Docker
+  # api:
+  #   image: node:20-alpine
+  #   container_name: openedu-api
+  #   restart: unless-stopped
+  #   working_dir: /app
+  #   environment:
+  #     - NODE_ENV=${NODE_ENV:-production}
+  #     - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+  #     - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process
+  #     # MinIO endpoints for internal/external access
+  #     - MINIO_ENDPOINT_INTERNAL=minio
+  #     - MINIO_ENDPOINT_EXTERNAL=localhost:9000
+  #     - MINIO_PORT=9000
+  #     - MINIO_USE_SSL=false
+  #     - REDIS_URL=redis://:openedu_redis_dev@redis:6379
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_started
+  #   volumes:
+  #     - .:/app
+  #   networks:
+  #     - openedu-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   command: >
+  #     sh -c "
+  #       apk add --no-cache bash python3 make g++ cairo-dev jpeg-dev pango-dev musl-dev giflib-dev pixman-dev pangomm-dev libjpeg-turbo-dev freetype-dev ffmpeg curl chromium &&
+  #       npm install &&
+  #       npm i -g @marp-team/marp-cli &&
+  #       npm run build &&
+  #       npm prune --production &&
+  #       echo 'FFmpeg version:' && ffmpeg -version | head -1 &&
+  #       echo 'Marp CLI version:' && marp --version &&
+  #       npm run start:prod
+  #     "
 
   # PostgreSQL Database with pgvector extension
   db:
@@ -134,7 +135,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: openedu-redis
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "openedu_redis_dev"]
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:

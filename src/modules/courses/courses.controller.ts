@@ -49,17 +49,13 @@ export class CoursesController {
   @ApiResponse({ status: 200, description: 'Courses retrieved successfully' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by course status' })
-  @ApiQuery({ name: 'level', required: false, description: 'Filter by course level' })
   @ApiQuery({ name: 'tutorId', required: false, description: 'Filter by tutor ID' })
   async getCourses(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
-    @Query('status') status?: string,
-    @Query('level') level?: string,
     @Query('tutorId') tutorId?: string,
   ) {
-    return this.coursesService.getCourses(page, limit, status, level, tutorId);
+    return this.coursesService.getCourses(page, limit, tutorId);
   }
 
   @Get(':id')
@@ -207,20 +203,17 @@ export class CoursesController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
   @ApiQuery({ name: 'category', required: false, description: 'Filter by category' })
   @ApiQuery({ name: 'priceRange', required: false, description: 'Filter by price range (e.g., 0-1000)' })
-  @ApiQuery({ name: 'level', required: false, description: 'Filter by difficulty level' })
   @ApiQuery({ name: 'search', required: false, description: 'Search query' })
   async getAllPlatformCourses(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
     @Query('category') category?: string,
     @Query('priceRange') priceRange?: string,
-    @Query('level') level?: string,
     @Query('search') search?: string,
   ) {
     return this.coursesService.getAllPlatformCourses({
       page,
       limit,
-      level,
       search,
     });
   }
@@ -422,21 +415,31 @@ export class CoursesController {
     return this.coursesService.getTutorCourses(tutorId, page, limit);
   }
 
+  @Get('tutor/:id')
+  @Public()
+  @ApiOperation({ summary: 'Get courses by specific tutor (alias)' })
+  @ApiResponse({ status: 200, description: 'Tutor courses retrieved successfully' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  async getTutorCoursesAlias(
+    @Param('id') tutorId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.coursesService.getTutorCourses(tutorId, page, limit);
+  }
+
   @Get('search')
   @Public()
   @ApiOperation({ summary: 'Search courses with filters' })
   @ApiResponse({ status: 200, description: 'Courses retrieved successfully' })
   @ApiQuery({ name: 'q', required: false, description: 'Search query' })
-  @ApiQuery({ name: 'category', required: false, description: 'Filter by category' })
-  @ApiQuery({ name: 'level', required: false, description: 'Filter by level' })
   @ApiQuery({ name: 'priceMin', required: false, type: Number, description: 'Minimum price' })
   @ApiQuery({ name: 'priceMax', required: false, type: Number, description: 'Maximum price' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
   async searchCourses(
     @Query('q') searchQuery?: string,
-    @Query('category') category?: string,
-    @Query('level') level?: string,
     @Query('priceMin') priceMin?: number,
     @Query('priceMax') priceMax?: number,
     @Query('page') page: number = 1,
@@ -444,8 +447,6 @@ export class CoursesController {
   ) {
     return this.coursesService.searchCourses({
       searchQuery,
-      category,
-      level,
       priceMin,
       priceMax,
       page,

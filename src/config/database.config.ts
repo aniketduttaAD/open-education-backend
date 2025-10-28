@@ -21,14 +21,20 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
     };
   }
 
-  // Fallback to individual connection parameters (hardcoded)
+  // Fallback to individual connection parameters
+  const host = configService.get<string>('DB_HOST') || 'localhost';
+  const port = configService.get<number>('DB_PORT') || 5432;
+  const username = configService.get<string>('DB_USERNAME') || 'openedu';
+  const password = configService.get<string>('DB_PASSWORD') || 'Qt5ff3c6RDkGBTpuALBap1juR7uXjJlSG0cmSn54FZI=';
+  const database = configService.get<string>('DB_NAME') || 'openedu_db';
+
   return {
     type: 'postgres',
-    host: 'db', // Docker service name
-    port: 5432,
-    username: 'openedu',
-    password: 'Qt5ff3c6RDkGBTpuALBap1juR7uXjJlSG0cmSn54FZI=',
-    database: 'openedu_db',
+    host,
+    port,
+    username,
+    password,
+    database,
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
     synchronize: false, 

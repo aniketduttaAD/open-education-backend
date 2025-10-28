@@ -52,8 +52,6 @@ export class CoursesService {
   async getCourses(
     page: number = 1,
     limit: number = 10,
-    status?: string,
-    level?: string,
     tutorId?: string,
   ): Promise<{ courses: Course[]; total: number }> {
     this.logger.log(`Getting courses - page: ${page}, limit: ${limit}`);
@@ -61,14 +59,6 @@ export class CoursesService {
     const queryBuilder = this.courseRepository.createQueryBuilder('course')
       .leftJoinAndSelect('course.tutor', 'tutor')
       .orderBy('course.created_at', 'DESC');
-
-    if (status) {
-      queryBuilder.andWhere('course.status = :status', { status });
-    }
-
-    if (level) {
-      queryBuilder.andWhere('course.level = :level', { level });
-    }
 
     if (tutorId) {
       queryBuilder.andWhere('course.tutor_user_id = :tutorId', { tutorId });
@@ -85,19 +75,85 @@ export class CoursesService {
   /**
    * Get course by ID
    */
-  async getCourseById(courseId: string): Promise<Course> {
+  async getCourseById(courseId: string): Promise<any> {
     this.logger.log(`Getting course: ${courseId}`);
 
     const course = await this.courseRepository.findOne({
       where: { id: courseId },
-      relations: ['tutor'],
+      relations: ['tutor', 'sections', 'sections.subtopics', 'sections.quizzes', 'sections.quizzes.questions', 'sections.flashcards'],
     });
 
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
-    return course;
+    // Format the response to include all course data
+    return {
+      success: true,
+      data: {
+        course: {
+          id: course.id,
+          title: course.title,
+          description: course.description,
+          price_inr: course.price_inr,
+          created_at: course.created_at,
+          updated_at: course.updated_at,
+          tutor: course.tutor ? {
+            id: course.tutor.id,
+            name: course.tutor.name,
+            email: course.tutor.email,
+            image: course.tutor.image,
+            user_type: course.tutor.user_type,
+            bio: course.tutor.tutor_details?.bio,
+            expertise_areas: course.tutor.tutor_details?.expertise_areas,
+            specializations: course.tutor.tutor_details?.specializations,
+            teaching_experience: course.tutor.tutor_details?.teaching_experience,
+            verification_status: course.tutor.tutor_details?.verification_status
+          } : null,
+          sections: course.sections?.map(section => ({
+            id: section.id,
+            title: section.title,
+            index: section.index,
+            subtopics: section.subtopics?.map(subtopic => ({
+              id: subtopic.id,
+              title: subtopic.title,
+              index: subtopic.index,
+              video_url: subtopic.video_url,
+              status: subtopic.status,
+              created_at: subtopic.created_at,
+              updated_at: subtopic.updated_at
+            })) || [],
+            quizzes: section.quizzes?.map(quiz => ({
+              id: quiz.id,
+              title: quiz.title,
+              questions: quiz.questions?.map(question => ({
+                id: question.id,
+                question: question.question,
+                options: question.options,
+                correct_index: question.correct_index,
+                index: question.index
+              })) || []
+            })) || [],
+            flashcards: section.flashcards?.map(flashcard => ({
+              id: flashcard.id,
+              front: flashcard.front,
+              back: flashcard.back,
+              index: flashcard.index
+            })) || []
+          })) || []
+        },
+        summary: {
+          totalSections: course.sections?.length || 0,
+          totalSubtopics: course.sections?.reduce((total, section) => total + (section.subtopics?.length || 0), 0) || 0,
+          totalVideos: course.sections?.reduce((total, section) => 
+            total + (section.subtopics?.filter(subtopic => subtopic.video_url).length || 0), 0) || 0,
+          totalQuizzes: course.sections?.reduce((total, section) => total + (section.quizzes?.length || 0), 0) || 0,
+          totalFlashcards: course.sections?.reduce((total, section) => total + (section.flashcards?.length || 0), 0) || 0
+        }
+      },
+      message: 'Course retrieved successfully',
+      timestamp: new Date().toISOString()
+    };
   }
 
   /**
@@ -569,21 +625,16 @@ export class CoursesService {
   async getAllPlatformCourses(filters: {
     page: number;
     limit: number;
-    level?: string;
     search?: string;
-  }): Promise<{ courses: Course[]; total: number; page: number; limit: number }> {
-    const { page, limit, level, search } = filters;
+  }): Promise<{ courses: any[]; total: number; page: number; limit: number }> {
+    const { page, limit, search } = filters;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.courseRepository
       .createQueryBuilder('course')
+      .leftJoinAndSelect('course.tutor', 'tutor')
       .leftJoinAndSelect('course.sections', 'sections')
-      .leftJoinAndSelect('sections.subtopics', 'subtopics')
-      .where('course.status = :status', { status: 'published' });
-
-    if (level) {
-      queryBuilder.andWhere('course.level = :level', { level });
-    }
+      .leftJoinAndSelect('sections.subtopics', 'subtopics');
 
     if (search) {
       queryBuilder.andWhere(
@@ -598,8 +649,42 @@ export class CoursesService {
       .take(limit)
       .getManyAndCount();
 
+    // Format the response with clean tutor information
+    const formattedCourses = courses.map(course => ({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      price_inr: course.price_inr,
+      created_at: course.created_at,
+      updated_at: course.updated_at,
+      tutor: course.tutor ? {
+        id: course.tutor.id,
+        name: course.tutor.name,
+        email: course.tutor.email,
+        image: course.tutor.image,
+        user_type: course.tutor.user_type,
+        bio: course.tutor.tutor_details?.bio,
+        expertise_areas: course.tutor.tutor_details?.expertise_areas,
+        specializations: course.tutor.tutor_details?.specializations,
+        teaching_experience: course.tutor.tutor_details?.teaching_experience,
+        verification_status: course.tutor.tutor_details?.verification_status
+      } : null,
+      sections: course.sections?.map(section => ({
+        id: section.id,
+        title: section.title,
+        index: section.index,
+        subtopics: section.subtopics?.map(subtopic => ({
+          id: subtopic.id,
+          title: subtopic.title,
+          index: subtopic.index,
+          video_url: subtopic.video_url,
+          status: subtopic.status
+        }))
+      }))
+    }));
+
     return {
-      courses,
+      courses: formattedCourses,
       total,
       page,
       limit,
@@ -759,8 +844,6 @@ export class CoursesService {
    */
   async searchCourses(filters: {
     searchQuery?: string;
-    category?: string;
-    level?: string;
     priceMin?: number;
     priceMax?: number;
     page: number;
@@ -770,14 +853,6 @@ export class CoursesService {
 
     if (filters.searchQuery) {
       queryBuilder.andWhere('course.title ILIKE :search', { search: `%${filters.searchQuery}%` });
-    }
-
-    if (filters.category) {
-      queryBuilder.andWhere('course.category = :category', { category: filters.category });
-    }
-
-    if (filters.level) {
-      queryBuilder.andWhere('course.level = :level', { level: filters.level });
     }
 
     if (filters.priceMin !== undefined) {

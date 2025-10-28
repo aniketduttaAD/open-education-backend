@@ -10,7 +10,9 @@ import { TutorVerificationProcessor } from './processors/tutor-verification.proc
 import { EnhancedContentGenerationProcessor } from './processors/enhanced-content-generation.processor';
 import { User } from '../auth/entities/user.entity';
 import { TutorDocument } from '../users/entities/tutor-document.entity';
-import { CourseGenerationProgress, CourseSection, CourseSubtopic } from '../courses/entities';
+import { CourseGenerationProgress, CourseSection, CourseSubtopic, Course, CourseRoadmap } from '../courses/entities';
+import { Quiz, QuizQuestion, Flashcard } from '../assessments/entities';
+import { VectorEmbedding } from '../ai/entities/vector-embedding.entity';
 import { AIModule } from '../ai/ai.module';
 import { StorageModule } from '../storage/storage.module';
 import { WebSocketModule } from '../websocket/websocket.module';
@@ -40,7 +42,19 @@ import { WebSocketModule } from '../websocket/websocket.module';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([User, TutorDocument, CourseGenerationProgress, CourseSection, CourseSubtopic]),
+    TypeOrmModule.forFeature([
+      User,
+      TutorDocument,
+      CourseGenerationProgress,
+      CourseSection,
+      CourseSubtopic,
+      Course,
+      CourseRoadmap,
+      Quiz,
+      QuizQuestion,
+      Flashcard,
+      VectorEmbedding,
+    ]),
     forwardRef(() => AIModule),
     forwardRef(() => StorageModule),
     forwardRef(() => WebSocketModule),

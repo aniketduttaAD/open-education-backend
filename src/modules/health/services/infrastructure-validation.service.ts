@@ -117,7 +117,7 @@ export class InfrastructureValidationService {
     const startTime = Date.now();
     
     try {
-      const redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://:openedu_redis_dev@redis:6379';
+      const redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://:openedu_redis_dev@localhost:6379';
       
       // Test Redis connection
       const client = await RedisWrapper.getClient({ url: redisUrl });

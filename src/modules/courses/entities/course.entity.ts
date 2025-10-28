@@ -23,6 +23,9 @@ export class Course {
   @Column({ type: 'varchar', length: 255 })
   title!: string;
 
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
   @Column({ type: 'integer', nullable: true })
   price_inr?: number;
 

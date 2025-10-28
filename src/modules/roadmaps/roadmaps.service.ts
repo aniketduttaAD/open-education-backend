@@ -1,16 +1,18 @@
-import { Injectable, Logger, Inject, forwardRef, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { RedisWrapper } from '../../common/utils/redis.util';
 import getOpenAIConfig from '../../config/openai.config';
 import OpenAI from 'openai';
 import { EditRoadmapDto } from './dto/edit-roadmap.dto';
 import { FinalizeRoadmapDto } from './dto/finalize-roadmap.dto';
-import { Queue } from 'bullmq';
+import { Queue, QueueEvents } from 'bullmq';
 import { CoursesService } from '../courses/services/courses.service';
-import { CourseRoadmap, CourseGenerationProgress, CourseSection, CourseSubtopic } from '../courses/entities';
+import { AssessmentsService } from '../assessments/services/assessments.service';
+import { CourseRoadmap, CourseGenerationProgress, CourseSection, CourseSubtopic, Course } from '../courses/entities';
+import { Quiz, QuizQuestion, Flashcard } from '../assessments/entities';
 
 interface GenerateRoadmapDto {
   prompt: string;
@@ -33,6 +35,8 @@ export class RoadmapsService {
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => CoursesService))
     private readonly coursesService: CoursesService,
+    @Inject(forwardRef(() => AssessmentsService))
+    private readonly assessmentsService: AssessmentsService,
     @InjectRepository(CourseRoadmap)
     private readonly roadmapRepository: Repository<CourseRoadmap>,
     @InjectRepository(CourseGenerationProgress)
@@ -41,8 +45,16 @@ export class RoadmapsService {
     private readonly sectionRepository: Repository<CourseSection>,
     @InjectRepository(CourseSubtopic)
     private readonly subtopicRepository: Repository<CourseSubtopic>,
+    @InjectRepository(Course)
+    private readonly courseRepository: Repository<Course>,
+    @InjectRepository(Quiz)
+    private readonly quizRepository: Repository<Quiz>,
+    @InjectRepository(QuizQuestion)
+    private readonly quizQuestionRepository: Repository<QuizQuestion>,
+    @InjectRepository(Flashcard)
+    private readonly flashcardRepository: Repository<Flashcard>,
   ) {
-    this.redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://:openedu_redis_dev@localhost:6379/0';
+    this.redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://:openedu_redis_dev@localhost:6379';
     const ai = getOpenAIConfig(this.configService);
     this.openai = new OpenAI({ apiKey: ai.apiKey });
   }
@@ -422,7 +434,8 @@ export class RoadmapsService {
 
       // Enqueue job
       const queue = new Queue('content-generation', { connection: { url: this.redisUrl } as any });
-      await queue.add('generate-course-content', {
+      const queueEvents = new QueueEvents('content-generation', { connection: { url: this.redisUrl } as any });
+      const job = await queue.add('generate-course-content', {
         courseId: courseId || null,
         roadmapId,
         progressId,
@@ -436,16 +449,92 @@ export class RoadmapsService {
         backoff: { type: 'exponential', delay: 2000 }
       });
 
+      // Wait for job completion
+      this.logger.log(`Waiting for job completion: ${job.id}`);
+      
+      // Wait for job to complete using BullMQ's built-in method with timeout
+      const result = await job.waitUntilFinished(queueEvents, 10 * 60 * 1000); // 10 minutes timeout
+      
+      // Update or create roadmap record and mark as finalized
+      if (roadmapId) {
+        await this.roadmapRepository.update(roadmapId, {
+          status: 'finalized',
+        });
+      } else if (!roadmapId && (result?.courseId || courseId)) {
+        // Session-first flow: persist a roadmap entry now so future publish doesn't re-finalize
+        const created = await this.roadmapRepository.save({
+          course_id: result?.courseId || courseId!,
+          tutor_user_id: tutorId!,
+          roadmap_data: existing.data,
+          status: 'finalized',
+          redis_key: key,
+          finalized_at: new Date(),
+        } as any);
+        roadmapId = created.id;
+      }
+
+      // Close queue connections
+      await queue.close();
+      await queueEvents.close();
+
+      this.logger.log(`Job completed successfully: ${job.id}`);
+
+      // Get course details - use courseId from job result if available
+      const finalCourseId = result?.courseId || courseId;
+      let courseDetails = null;
+      if (finalCourseId) {
+        courseDetails = await this.courseRepository.findOne({
+          where: { id: finalCourseId },
+          relations: ['sections', 'sections.subtopics']
+        });
+      }
+
       return {
-        id: dto.id,
-        roadmapId,
-        progressId,
-        sessionId,
+        tempRoadmapId: dto.id, // Original temporary roadmap ID
+        courseId: finalCourseId, // Created course UUID
+        roadmapId, // Database roadmap UUID
+        progressId, // Progress tracking UUID
+        sessionId, // WebSocket session UUID
         totalSections,
         totalSubtopics,
+        status: 'completed',
+        course: courseDetails, // Full course details with sections and subtopics
+        result: result,
       };
     } catch (error) {
       this.logger.error(`Failed to finalize roadmap ${dto.id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get generation progress by progress ID
+   */
+  async getProgress(progressId: string) {
+    try {
+      const progress = await this.progressRepository.findOne({
+        where: { id: progressId }
+      });
+
+      if (!progress) {
+        throw new Error('Progress not found');
+      }
+
+      return {
+        id: progress.id,
+        status: progress.status,
+        currentStep: progress.current_step,
+        progressPercentage: progress.progress_percentage,
+        currentSectionIndex: progress.current_section_index,
+        currentSubtopicIndex: progress.current_subtopic_index,
+        totalSections: progress.total_sections,
+        totalSubtopics: progress.total_subtopics,
+        estimatedTimeRemaining: progress.estimated_time_remaining,
+        startedAt: progress.started_at,
+        completedAt: progress.completed_at,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get progress ${progressId}:`, error);
       throw error;
     }
   }
@@ -532,7 +621,8 @@ export class RoadmapsService {
    */
   private async validateCourseOwnership(courseId: string, tutorId: string): Promise<void> {
     try {
-      const course = await this.coursesService.getCourseById(courseId);
+      // IMPORTANT: Use repository to fetch raw entity, not formatted DTO
+      const course = await this.courseRepository.findOne({ where: { id: courseId } });
       if (!course) {
         throw new ForbiddenException('Course not found');
       }
@@ -547,6 +637,246 @@ export class RoadmapsService {
       this.logger.error(`Failed to validate course ownership for course ${courseId} and tutor ${tutorId}:`, error);
       throw new ForbiddenException('Failed to validate course access');
     }
+  }
+
+  /**
+   * Create a course from finalized roadmap
+   */
+  async createCourseFromRoadmap(
+    roadmapId: string,
+    tutorId: string,
+    courseTitle?: string,
+    priceInr?: number
+  ): Promise<{ course: any; sections: any[]; subtopics: any[] }> {
+    this.logger.log(`Creating course from roadmap: ${roadmapId} for tutor: ${tutorId}`);
+
+    try {
+      // Get the finalized roadmap data
+      const roadmap = await this.roadmapRepository.findOne({
+        where: { id: roadmapId, status: 'finalized' }
+      });
+
+      if (!roadmap) {
+        throw new NotFoundException('Finalized roadmap not found');
+      }
+
+      // Create the course
+      const course = await this.coursesService.createCourse(tutorId, {
+        title: courseTitle || `Course from ${roadmapId}`,
+        price_inr: priceInr
+      });
+
+      this.logger.log(`Course created: ${course.id}`);
+
+      // Create course roadmap relationship
+      const courseRoadmap = this.roadmapRepository.create({
+        course_id: course.id,
+        tutor_user_id: tutorId,
+        roadmap_data: roadmap.roadmap_data,
+        status: 'finalized',
+        finalized_at: new Date()
+      });
+
+      await this.roadmapRepository.save(courseRoadmap);
+
+      // Create sections and subtopics from roadmap data
+      const sections = [];
+      const subtopics = [];
+
+      for (let sectionIndex = 0; sectionIndex < roadmap.roadmap_data.sections.length; sectionIndex++) {
+        const sectionData = roadmap.roadmap_data.sections[sectionIndex];
+        
+        // Create section
+        const section = await this.coursesService.createSection(course.id, tutorId, {
+          title: sectionData.title,
+          index: sectionIndex + 1
+        });
+
+        sections.push(section);
+
+        // Create subtopics for this section
+        for (let subtopicIndex = 0; subtopicIndex < sectionData.subtopics.length; subtopicIndex++) {
+          const subtopicData = sectionData.subtopics[subtopicIndex];
+          
+          const subtopic = await this.coursesService.createSubtopic(section.id, tutorId, {
+            title: subtopicData.title,
+            index: subtopicIndex + 1,
+            status: 'pending'
+          });
+
+          subtopics.push(subtopic);
+        }
+      }
+
+      this.logger.log(`Course creation completed: ${course.id} with ${sections.length} sections and ${subtopics.length} subtopics`);
+
+      return {
+        course,
+        sections,
+        subtopics
+      };
+
+    } catch (error) {
+      this.logger.error(`Failed to create course from roadmap ${roadmapId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Publish course from finalized roadmap with all generated content
+   */
+  /**
+   * Publish course from roadmap - updates course details and marks as published
+   * 
+   * This method handles both temporary roadmap IDs (from Redis) and regular roadmap IDs (from database).
+   * For temporary roadmaps that haven't been finalized yet, it will:
+   * 1. Create a new course
+   * 2. Finalize the roadmap with the course
+   * 3. Update the course details
+   * 4. Return all course data
+   */
+  async publishCourseFromRoadmap(
+    roadmapId: string,
+    tutorId: string,
+    courseData: {
+      title: string;
+      price_inr?: number;
+      description?: string;
+    }
+  ): Promise<{ tempRoadmapId: string | null; courseId: string; course: any; sections: any[]; subtopics: any[]; videos: any[]; quizzes: any[]; flashcards: any[] }> {
+    this.logger.log(`Publishing course from roadmap: ${roadmapId} for tutor: ${tutorId}`);
+
+    let roadmap;
+    
+    // Handle temporary roadmap IDs (stored in Redis) vs database roadmap IDs
+    if (roadmapId.startsWith('temp_')) {
+      this.logger.log(`Processing temporary roadmap ID: ${roadmapId}`);
+      
+      // For temporary IDs, we need to check if a course has been created from this roadmap
+      // First, get the roadmap data from Redis
+      const key = `roadmap:${roadmapId}`;
+      const client = await RedisWrapper.getClient({ url: this.redisUrl });
+      const roadmapData = await RedisWrapper.getJson<any>(key);
+      
+      if (!roadmapData?.data) {
+        throw new NotFoundException(`Temporary roadmap not found: ${roadmapId}`);
+      }
+      
+      // Look for a roadmap in database that was created from this temporary roadmap
+      // We can identify this by checking if the redis_key matches
+      roadmap = await this.roadmapRepository.findOne({
+        where: { redis_key: key, tutor_user_id: tutorId }
+      });
+      
+      if (!roadmap) {
+        // If no DB roadmap exists, check if a course already exists for this temp roadmap in Redis session
+        // Avoid regenerating: try to find any course created during previous finalize by checking Course with same tutor and recent timestamp
+        const existingCourse = await this.courseRepository.findOne({
+          where: { tutor_user_id: tutorId },
+          order: { created_at: 'DESC' as any }
+        });
+        if (existingCourse) {
+          this.logger.log(`Found existing recent course ${existingCourse.id} for tutor ${tutorId}, attempting to bind to roadmap ${roadmapId}`);
+          await this.finalize({ id: roadmapId }, existingCourse.id, tutorId);
+        } else {
+          // Create course once and finalize
+          this.logger.log(`Temporary roadmap ${roadmapId} not yet finalized. Creating course and finalizing...`);
+          const course = await this.coursesService.createCourse(tutorId, {
+            title: courseData.title || `Course from ${roadmapId}`,
+            price_inr: courseData.price_inr
+          });
+          this.logger.log(`Created course: ${course.id} for temporary roadmap: ${roadmapId}`);
+          try {
+            await this.finalize({ id: roadmapId }, course.id, tutorId);
+            this.logger.log(`Successfully finalized roadmap ${roadmapId} for course ${course.id}`);
+          } catch (error) {
+            this.logger.error(`Failed to finalize roadmap ${roadmapId}:`, error);
+            throw new BadRequestException(`Failed to finalize roadmap: ${error.message}`);
+          }
+        }
+        // Re-fetch roadmap after finalize
+        roadmap = await this.roadmapRepository.findOne({ where: { redis_key: key, tutor_user_id: tutorId } });
+        if (!roadmap) {
+          throw new NotFoundException(`Failed to create roadmap record for temporary id: ${roadmapId}`);
+        }
+      }
+    } else {
+      // Handle regular UUID roadmap IDs
+      roadmap = await this.roadmapRepository.findOne({
+        where: { id: roadmapId, tutor_user_id: tutorId }
+      });
+      
+      if (!roadmap) {
+        throw new NotFoundException(`Roadmap not found: ${roadmapId}`);
+      }
+    }
+
+    if (!roadmap.course_id) {
+      throw new NotFoundException(`No course found for roadmap: ${roadmapId}`);
+    }
+
+    // Update course details
+    const updatedCourse = await this.courseRepository.save({
+      id: roadmap.course_id,
+      title: courseData.title,
+      description: courseData.description || null,
+      price_inr: courseData.price_inr ?? null
+    });
+
+    // Get all course data from database
+    let sections = await this.sectionRepository.find({
+      where: { course_id: roadmap.course_id },
+      order: { index: 'ASC' }
+    });
+
+    let subtopics = await this.subtopicRepository.find({
+      where: { section_id: In(sections.map(s => s.id)) },
+      order: { index: 'ASC' }
+    });
+
+    // If no sections/subtopics exist yet (fresh finalize), trigger content generation synchronously via queue job result
+    if ((!sections || sections.length === 0) || (!subtopics || subtopics.length === 0)) {
+      this.logger.warn(`No sections/subtopics found for course ${roadmap.course_id}. Triggering generation job to populate.`);
+      // Reuse finalize path to ensure job runs and DB populates
+      await this.finalize({ id: roadmap.redis_key?.replace('roadmap:', '') || (roadmapId.startsWith('temp_') ? roadmapId : roadmap.id) }, roadmap.course_id, tutorId);
+      // Re-query after generation
+      sections = await this.sectionRepository.find({ where: { course_id: roadmap.course_id }, order: { index: 'ASC' } });
+      subtopics = await this.subtopicRepository.find({ where: { section_id: In(sections.map(s => s.id)) }, order: { index: 'ASC' } });
+    }
+
+    const quizzes = await this.quizRepository.find({
+      where: { course_id: roadmap.course_id },
+      relations: ['questions']
+    });
+
+    const flashcards = await this.flashcardRepository.find({
+      where: { course_id: roadmap.course_id }
+    });
+
+    // Get videos from subtopics
+    const videos = subtopics
+      .filter(st => st.video_url)
+      .map(st => ({
+        id: st.id,
+        title: st.title,
+        url: st.video_url,
+        section: sections.find(s => s.id === st.section_id)?.title,
+        sectionIndex: sections.find(s => s.id === st.section_id)?.index,
+        subtopicIndex: st.index
+      }));
+
+    this.logger.log(`Course published successfully: ${updatedCourse.id}`);
+
+    return {
+      tempRoadmapId: roadmapId.startsWith('temp_') ? roadmapId : null, // Include temp ID if applicable
+      courseId: updatedCourse.id, // Proper UUID course ID
+      course: updatedCourse,
+      sections,
+      subtopics,
+      videos,
+      quizzes,
+      flashcards
+    };
   }
 }
 

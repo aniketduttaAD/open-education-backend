@@ -12,15 +12,21 @@ export interface MinioConfig {
 export const getMinioConfig = (configService: ConfigService): MinioConfig => {
   const accessKey = configService.get<string>('MINIO_ROOT_USER');
   const secretKey = configService.get<string>('MINIO_ROOT_PASSWORD');
+  const endPoint = configService.get<string>('MINIO_ENDPOINT_INTERNAL') || 'localhost';
+  const port = configService.get<number>('MINIO_PORT') || 9000;
+  const useSSL = configService.get<boolean>('MINIO_USE_SSL') || false;
 
   if (!accessKey || !secretKey) {
     throw new Error('MINIO_ROOT_USER and MINIO_ROOT_PASSWORD are required');
   }
 
+  // Extract hostname from URL if it's a full URL
+  const hostname = endPoint.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+
   return {
-    endPoint: 'minio', // Docker service name
-    port: 9000, 
-    useSSL: false, 
+    endPoint: hostname,
+    port, 
+    useSSL, 
     accessKey,
     secretKey,
   };

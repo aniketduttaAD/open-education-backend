@@ -7,6 +7,11 @@ export class UpdateCourseDto {
   @IsString()
   title?: string;
 
+  @ApiPropertyOptional({ description: 'Course description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @ApiPropertyOptional({ description: 'Course price in INR', minimum: 0 })
   @IsOptional()
   @IsNumber()

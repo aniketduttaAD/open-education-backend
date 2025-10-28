@@ -8,7 +8,7 @@ async function bootstrap() {
   // Enable CORS for frontend access
   app.enableCors({
     origin: [
-      'https://openeducation.vercel.app', // Production
+      'https://open-education-frontend.vercel.app', // Hosted FE
       'http://localhost:3000',            // Development frontend
       'http://localhost:3001',            // Alternative dev port
     ],

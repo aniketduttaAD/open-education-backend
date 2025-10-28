@@ -206,6 +206,7 @@ CREATE TABLE tutor_document_sets (
 CREATE TABLE courses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(255) NOT NULL,
+    description TEXT,
     tutor_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     price_inr INTEGER, -- whole-number INR, no decimals
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

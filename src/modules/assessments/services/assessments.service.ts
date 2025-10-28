@@ -376,4 +376,86 @@ export class AssessmentsService {
       })),
     };
   }
+
+  /**
+   * Create quiz from generated content
+   */
+  async createQuizFromGeneratedContent(
+    courseId: string,
+    sectionId: string,
+    quizData: {
+      title: string;
+      questions: Array<{
+        question: string;
+        options: string[];
+        correct_index: number;
+      }>;
+    }
+  ): Promise<string> {
+    this.logger.log(`Creating quiz from generated content for section: ${sectionId}`);
+
+    try {
+      // Create quiz record
+      const quiz = await this.quizRepository.save({
+        course_id: courseId,
+        section_id: sectionId,
+        title: quizData.title,
+      });
+
+      // Create quiz questions
+      for (let i = 0; i < quizData.questions.length; i++) {
+        const question = quizData.questions[i];
+        await this.quizQuestionRepository.save({
+          quiz_id: quiz.id,
+          index: i + 1,
+          question: question.question,
+          options: question.options,
+          correct_index: question.correct_index,
+        });
+      }
+
+      this.logger.log(`Created quiz ${quiz.id} with ${quizData.questions.length} questions`);
+      return quiz.id;
+    } catch (error) {
+      this.logger.error(`Failed to create quiz for section ${sectionId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create flashcards from generated content
+   */
+  async createFlashcardsFromGeneratedContent(
+    courseId: string,
+    sectionId: string,
+    flashcardsData: Array<{
+      front: string;
+      back: string;
+      index: number;
+    }>
+  ): Promise<string[]> {
+    this.logger.log(`Creating ${flashcardsData.length} flashcards for section: ${sectionId}`);
+
+    try {
+      const flashcardIds: string[] = [];
+
+      for (const cardData of flashcardsData) {
+        const flashcard = await this.flashcardRepository.save({
+          course_id: courseId,
+          section_id: sectionId,
+          index: cardData.index,
+          front: cardData.front,
+          back: cardData.back,
+        });
+
+        flashcardIds.push(flashcard.id);
+      }
+
+      this.logger.log(`Created ${flashcardIds.length} flashcards for section ${sectionId}`);
+      return flashcardIds;
+    } catch (error) {
+      this.logger.error(`Failed to create flashcards for section ${sectionId}:`, error);
+      throw error;
+    }
+  }
 }

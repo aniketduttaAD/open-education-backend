@@ -23,7 +23,7 @@ import { ProgressUpdate } from "./interfaces/progress-update.interface";
  */
 @WSGateway({
   cors: {
-    origin: ["https://openeducation.vercel.app", "http://localhost:3000"],
+    origin: ["https://open-education-frontend.vercel.app", "https://openeducation.vercel.app", "http://localhost:3000"],
     credentials: true,
   },
   namespace: "/ws",

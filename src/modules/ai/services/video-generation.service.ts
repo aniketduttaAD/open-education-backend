@@ -120,6 +120,7 @@ export class VideoGenerationService {
     }
   }
 
+
   /**
    * Generate slides using Marp CLI
    */
@@ -137,22 +138,21 @@ export class VideoGenerationService {
     await fs.ensureDir(outputDir);
     const outputPngBase = path.join(outputDir, 'slides.png');
     
-    // Add Chromium args for Docker environment to prevent hanging
-    const chromeArgs = '--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process';
-    const command = `${this.marpCliPath} "${markdownPath}" --images png -o "${outputPngBase}" --image-scale 2 --timeout 120000 --allow-local-files --html -- ${chromeArgs}`;
+    // Use simplified command without Chrome flags - same as working CLI
+    const command = `${this.marpCliPath} "${markdownPath}" --images png -o "${outputPngBase}" --image-scale 2 --timeout 120000 --allow-local-files --html --no-stdin`;
     this.logger.log(`Running Marp CLI: ${command}`);
-    this.logger.debug(`PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH || 'not set'}`);
     
     try {
-      // Add timeout at Node.js level (2.5 minutes to give Marp time to timeout first)
+      // Add timeout at Node.js level (2.5 minutes)
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Marp CLI execution timeout after 150 seconds')), 150000);
       });
 
       const execPromise = this.execAsync(command, { 
-        maxBuffer: 64 * 1024 * 1024,
+        maxBuffer: 128 * 1024 * 1024,
         timeout: 150000, // 2.5 minutes
         killSignal: 'SIGTERM'
+        // No custom environment variables - use system defaults
       });
 
       await Promise.race([execPromise, timeoutPromise]);

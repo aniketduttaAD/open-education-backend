@@ -17,11 +17,14 @@ export class MinioService {
 
   constructor(private configService: ConfigService) {
     // Use internal endpoint for client operations (Docker network)
-    const internalEndpoint = this.configService.get<string>('MINIO_ENDPOINT_INTERNAL', 'minio');
+    const internalEndpoint = this.configService.get<string>('MINIO_ENDPOINT_INTERNAL', 'localhost');
     const internalPort = parseInt(this.configService.get<string>('MINIO_PORT', '9000'));
     
+    // Extract hostname from URL if it's a full URL
+    const hostname = internalEndpoint.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+    
     this.minioClient = new Minio.Client({
-      endPoint: internalEndpoint, // Always use internal endpoint for client operations
+      endPoint: hostname, // Always use internal endpoint for client operations
       port: internalPort,
       useSSL: this.configService.get<string>('MINIO_USE_SSL', 'false') === 'true',
       accessKey: this.configService.get<string>('MINIO_ROOT_USER', 'minioadmin'),
@@ -45,9 +48,39 @@ export class MinioService {
           await this.minioClient.makeBucket(bucket, 'us-east-1');
           this.logger.log(`Created bucket: ${bucket}`);
         }
+
+        // Set public read policy for courses bucket (videos need to be publicly accessible)
+        if (bucket === MINIO_BUCKETS.COURSES) {
+          await this.setPublicReadPolicy(bucket);
+        }
       } catch (error) {
         this.logger.error(`Failed to create bucket ${bucket}:`, error);
       }
+    }
+  }
+
+  /**
+   * Set public read policy for a bucket
+   */
+  private async setPublicReadPolicy(bucketName: string): Promise<void> {
+    try {
+      const policy = {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: '*',
+            Action: ['s3:GetObject'],
+            Resource: [`arn:aws:s3:::${bucketName}/*`]
+          }
+        ]
+      };
+
+      await this.minioClient.setBucketPolicy(bucketName, JSON.stringify(policy));
+      this.logger.log(`Set public read policy for bucket: ${bucketName}`);
+    } catch (error) {
+      this.logger.warn(`Failed to set public read policy for bucket ${bucketName}:`, error);
+      // Don't throw error as this is not critical for basic functionality
     }
   }
 
@@ -83,11 +116,14 @@ export class MinioService {
       const useSSL = this.configService.get<string>('MINIO_USE_SSL', 'false') === 'true';
       const protocol = useSSL ? 'https' : 'http';
       
+      // Extract hostname from external endpoint
+      const externalHostname = externalEndpoint.replace(/^https?:\/\//, '');
+      
       // Use the internal client to generate presigned URL
       const url = await this.minioClient.presignedGetObject(bucketName, objectName, expiresInSeconds);
       
       // Replace the internal hostname with external hostname in the URL
-      const externalUrl = url.replace(/https?:\/\/[^\/]+/, `${protocol}://${externalEndpoint}`);
+      const externalUrl = url.replace(/https?:\/\/[^\/]+/, `${protocol}://${externalHostname}`);
       
       this.logger.log(`Generated presigned download URL for ${bucketName}/${objectName}`);
       return externalUrl;
@@ -163,11 +199,20 @@ export class MinioService {
     objectName: string,
     fileBuffer: Buffer,
     contentType: string,
+    isPublic: boolean = false,
   ): Promise<string> {
     try {
-      await this.minioClient.putObject(bucketName, objectName, fileBuffer, {
+      const metadata: any = {
         'Content-Type': contentType,
-      });
+      };
+
+      // Add public access headers for videos
+      if (isPublic) {
+        metadata['Cache-Control'] = 'public, max-age=31536000';
+        metadata['Access-Control-Allow-Origin'] = '*';
+      }
+
+      await this.minioClient.putObject(bucketName, objectName, fileBuffer, metadata);
 
       const fileUrl = await this.getFileUrl(bucketName, objectName);
       this.logger.log(`File uploaded successfully: ${fileUrl}`);
@@ -199,8 +244,10 @@ export class MinioService {
     const externalEndpoint = this.configService.get<string>('MINIO_ENDPOINT_EXTERNAL', 'localhost:9000');
     const useSSL = this.configService.get<string>('MINIO_USE_SSL', 'false') === 'true';
     
+    // Extract hostname from external endpoint
+    const externalHostname = externalEndpoint.replace(/^https?:\/\//, '');
     const protocol = useSSL ? 'https' : 'http';
-    return `${protocol}://${externalEndpoint}/${bucketName}/${objectName}`;
+    return `${protocol}://${externalHostname}/${bucketName}/${objectName}`;
   }
 
   /**
