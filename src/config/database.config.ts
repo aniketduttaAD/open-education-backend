@@ -23,7 +23,7 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
 
   // Fallback to individual connection parameters
   const host = configService.get<string>('DB_HOST') || 'localhost';
-  const port = configService.get<number>('DB_PORT') || 5432;
+  const port = configService.get<number>('DB_PORT') || 5433;
   const username = configService.get<string>('DB_USERNAME') || 'openedu';
   const password = configService.get<string>('DB_PASSWORD') || 'Qt5ff3c6RDkGBTpuALBap1juR7uXjJlSG0cmSn54FZI=';
   const database = configService.get<string>('DB_NAME') || 'openedu_db';

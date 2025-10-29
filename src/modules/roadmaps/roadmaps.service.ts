@@ -54,7 +54,7 @@ export class RoadmapsService {
     @InjectRepository(Flashcard)
     private readonly flashcardRepository: Repository<Flashcard>,
   ) {
-    this.redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://:openedu_redis_dev@localhost:6379';
+    this.redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://:openedu_redis_dev@localhost:6380';
     const ai = getOpenAIConfig(this.configService);
     this.openai = new OpenAI({ apiKey: ai.apiKey });
   }
