@@ -1,0 +1,47 @@
+FROM node:20-alpine
+
+# Install system dependencies (Chromium, ffmpeg, fonts, build tools etc.)
+RUN apk add --no-cache \
+    bash \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    musl-dev \
+    giflib-dev \
+    pixman-dev \
+    pangomm-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    ffmpeg \
+    curl \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Puppeteer: don't download its own Chromium; we use system Chromium
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm install && npm i -g @marp-team/marp-cli
+
+# Copy rest of the project
+COPY . .
+
+# Build NestJS app
+RUN npm run build && \
+    npm prune --production && \
+    echo "FFmpeg version:" && ffmpeg -version | head -1 && \
+    echo "Marp CLI version:" && marp --version
+
+EXPOSE 8081
+
+CMD ["npm", "run", "start:prod"]

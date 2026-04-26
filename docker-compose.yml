@@ -1,53 +1,50 @@
+version: "3.9"
+
 services:
-  # Main Backend Application - COMMENTED OUT FOR LOCAL DEVELOPMENT
-  # Uncomment this section if you want to run the API in Docker
-  # api:
-  #   image: node:20-alpine
-  #   container_name: openedu-api
-  #   restart: unless-stopped
-  #   working_dir: /app
-  #   environment:
-  #     - NODE_ENV=${NODE_ENV:-production}
-  #     - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-  #     - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process
-  #     # MinIO endpoints for internal/external access
-  #     - MINIO_ENDPOINT_INTERNAL=minio
-  #     - MINIO_ENDPOINT_EXTERNAL=localhost:9000
-  #     - MINIO_PORT=9000
-  #     - MINIO_USE_SSL=false
-  #     - REDIS_URL=redis://:openedu_redis_dev@redis:6379
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "8081:8081"
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #   volumes:
-  #     - .:/app
-  #   networks:
-  #     - openedu-network
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s
-  #   command: >
-  #     sh -c "
-  #       apk add --no-cache bash python3 make g++ cairo-dev jpeg-dev pango-dev musl-dev giflib-dev pixman-dev pangomm-dev libjpeg-turbo-dev freetype-dev ffmpeg curl chromium &&
-  #       npm install &&
-  #       npm i -g @marp-team/marp-cli &&
-  #       npm run build &&
-  #       npm prune --production &&
-  #       echo 'FFmpeg version:' && ffmpeg -version | head -1 &&
-  #       echo 'Marp CLI version:' && marp --version &&
-  #       npm run start:prod
-  #     "
+  # Main Backend Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: openedu-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # Puppeteer / Chromium
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+      CHROME_PATH: /usr/bin/chromium-browser
+      PUPPETEER_ARGS: --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process
+
+      # MinIO endpoints for internal/external access
+      MINIO_ENDPOINT_INTERNAL: minio               # inside Docker network
+      MINIO_ENDPOINT_EXTERNAL: localhost:9000      # from your host machine (for local dev)
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+
+      # Redis
+      REDIS_URL: redis://:openedu_redis_dev@redis:6379
+    env_file:
+      - .env
+    ports:
+      - "8081:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    networks:
+      - openedu-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # PostgreSQL Database with pgvector extension
   db:
@@ -60,7 +57,7 @@ services:
       POSTGRES_DB: openedu_db
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
-      - "5433:5432"  
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U openedu -d openedu_db"]
       interval: 10s
@@ -73,7 +70,6 @@ services:
     networks:
       - openedu-network
 
-
   # MinIO Object Storage
   minio:
     image: minio/minio:latest
@@ -83,8 +79,7 @@ services:
     environment:
       MINIO_ROOT_USER: AKIAIOSFODNN7EXAMPLE
       MINIO_ROOT_PASSWORD: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-      # Optional: Set external hostname for presigned URLs
-      # MINIO_BROWSER_REDIRECT_URL: "http://your.external.host:9000"
+      # For production, you'll want MINIO_BROWSER_REDIRECT_URL set to your public minio URL
     volumes:
       - minio_data:/data
     ports:
@@ -105,7 +100,6 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    # Use a shell entrypoint to run multiple commands
     entrypoint: ["/bin/sh", "-c"]
     command: |
       # Wait until alias set works
@@ -137,7 +131,7 @@ services:
     container_name: openedu-redis
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6380:6379"  
+      - "6380:6379"
     volumes:
       - redis-data:/data
     restart: unless-stopped
@@ -155,7 +149,7 @@ services:
     environment:
       - DATABASE_URL=postgres://openedu:Qt5ff3c6RDkGBTpuALBap1juR7uXjJlSG0cmSn54FZI=@db:5432/openedu_db?sslmode=disable
     ports:
-      - "8083:8081"  
+      - "8083:8081"
     networks:
       - openedu-network
 
